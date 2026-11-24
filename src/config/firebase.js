@@ -11,7 +11,7 @@
 // Também dá para definir pelo ambiente de build (Render → Environment):
 //   VITE_FIREBASE_PROJECT_ID=meu-projeto
 
-const ID_PADRAO = '';
+const ID_PADRAO = 'checklistveicular-6a274';
 
 export const FIREBASE_PROJECT_ID = (import.meta.env?.VITE_FIREBASE_PROJECT_ID || ID_PADRAO).trim();
 export const COLECAO = 'checklists';
