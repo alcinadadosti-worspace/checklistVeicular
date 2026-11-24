@@ -35,6 +35,9 @@ npm run preview    # serve a pasta dist/ em http://localhost:4173
 npm test           # testes da parte de dados
 ```
 
+Há também testes de navegador em `tests/e2e` e um teste de integração com o banco em
+`tests/integracao` — instruções no topo de cada arquivo e no [`CLAUDE.md`](CLAUDE.md).
+
 ## Publicar no Render (Static Site, plano gratuito)
 
 No painel do Render: **New → Static Site**, escolha este repositório e preencha:
@@ -144,5 +147,5 @@ src/lib/             regras do checklist, banco local, nuvem, sincronização, d
 src/componentes/     peças da interface
 src/telas/           login, início, checklist, retorno, sucesso e administração
 src/reactbits/       componentes do React Bits
-tests/               testes da parte de dados
+tests/               testes da parte de dados; tests/e2e (navegador) e tests/integracao (banco real)
 ```
