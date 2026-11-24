@@ -29,10 +29,6 @@ services:
       - path: /*
         name: Referrer-Policy
         value: strict-origin-when-cross-origin
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
     # Banco de dados (opcional aqui: também pode ficar em src/config/firebase.js)
     # envVars:
     #   - key: VITE_FIREBASE_PROJECT_ID

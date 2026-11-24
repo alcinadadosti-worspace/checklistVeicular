@@ -43,6 +43,10 @@ self.addEventListener('activate', evento => {
   );
 });
 
+// Só guarda respostas boas e que sejam o arquivo pedido: alguns servidores devolvem a página
+// inicial (HTML) quando o arquivo não existe mais, e isso não pode ir para o cache.
+const podeGuardar = resposta => resposta.ok && !(resposta.headers.get('content-type') || '').includes('text/html');
+
 const comPrazo = (promessa, ms) =>
   new Promise((resolver, rejeitar) => {
     const relogio = setTimeout(() => rejeitar(new Error('rede lenta')), ms);
@@ -77,7 +81,7 @@ const arquivoComHash = async pedido => {
   const guardado = await caches.match(pedido.url, BUSCA);
   if (guardado) return guardado;
   const resposta = await fetch(pedido);
-  if (resposta.ok) (await caches.open(CACHE)).put(pedido.url, resposta.clone());
+  if (podeGuardar(resposta)) (await caches.open(CACHE)).put(pedido.url, resposta.clone());
   return resposta;
 };
 
@@ -86,7 +90,7 @@ const outroArquivo = async pedido => {
   const guardado = (await cache.match(pedido.url, BUSCA)) || (await caches.match(pedido.url, BUSCA));
   const daRede = fetch(pedido)
     .then(resposta => {
-      if (resposta.ok) cache.put(pedido.url, resposta.clone());
+      if (podeGuardar(resposta)) cache.put(pedido.url, resposta.clone());
       return resposta;
     })
     .catch(() => null);
