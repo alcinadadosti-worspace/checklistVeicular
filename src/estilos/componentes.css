@@ -963,6 +963,16 @@
 .linha-registro__meio b {
   font-weight: 600;
   color: var(--destaque-claro);
+  white-space: nowrap;
+}
+
+/* "45.060 → 45.192" nunca quebra no meio */
+.linha-registro__meio .linha-registro__trecho {
+  display: inline;
+  font-size: inherit;
+  color: inherit;
+  white-space: nowrap;
+  overflow: visible;
 }
 
 .linha-registro__selos {
@@ -998,6 +1008,11 @@
     margin-left: 0;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  /* a quilometragem pode quebrar de linha, mas "· 132 km" fica junto */
+  .linha-registro__meio span {
+    white-space: normal;
   }
 }
 

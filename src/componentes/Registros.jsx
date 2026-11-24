@@ -121,8 +121,16 @@ export function LinhaRegistro({ registro, aoAbrir, comUnidade = false, pendente 
             {comUnidade ? <em>{unidade?.nome || registro.unidadeNome}</em> : null}
           </strong>
           <span className="mono">
-            {numero(registro.kmSaida)} → {rodando ? '…' : numero(registro.kmVolta)}
-            {rodados !== null ? <b> · {km(rodados)}</b> : null}
+            {/* cada parte fica inteira; se faltar espaço, a distância desce para a linha de baixo */}
+            <span className="linha-registro__trecho">
+              {numero(registro.kmSaida)} → {rodando ? '…' : numero(registro.kmVolta)}
+            </span>
+            {rodados !== null ? (
+              <>
+                {' '}
+                <b>· {km(rodados)}</b>
+              </>
+            ) : null}
           </span>
         </span>
         <span className="linha-registro__selos">

@@ -50,8 +50,20 @@ A cada `git push` o Render publica de novo sozinho.
 
 ## Banco de dados (Firebase · Cloud Firestore)
 
-Sem banco, o app funciona em **modo local**: cada aparelho guarda só os próprios checklists e a
-administração não enxerga o que foi preenchido nos outros. Para todos verem os mesmos dados:
+**Este repositório já está ligado ao banco**: o ID do projeto (`checklistveicular-6a274`) está em
+[`src/config/firebase.js`](src/config/firebase.js) e as regras publicadas são as de
+[`firestore.rules`](firestore.rules). Todos os aparelhos enxergam os mesmos dados.
+
+- O indicador no topo do app mostra a situação: _Sincronizado_, _N a enviar_, _Offline_ ou _Erro na
+  nuvem_. Tocar nele mostra os detalhes e o botão **Sincronizar agora**.
+- **Atenção:** rodar o app no computador (`npm run dev`) também grava nesse banco. Se for testar,
+  use um nome de motorista de teste e exclua o registro depois pelo painel da administração.
+- Para ver os dados direto na fonte: console do Firebase → Firestore Database → coleção `checklists`.
+
+### Montar o banco do zero (outro projeto)
+
+Sem ID de projeto, o app funciona em **modo local**: cada aparelho guarda só os próprios checklists
+e a administração não enxerga o que foi preenchido nos outros. Para ligar a um projeto novo:
 
 1. No [console do Firebase](https://console.firebase.google.com), abra o projeto e vá em
    **Criação → Firestore Database → Criar banco de dados**: edição _Standard_, ID `(default)`, local
