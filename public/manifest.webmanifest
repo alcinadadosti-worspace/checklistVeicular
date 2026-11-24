@@ -1,0 +1,12 @@
+{
+  "name": "Checklist Veicular",
+  "short_name": "Checklist",
+  "description": "Checklist veicular das rotas de Penedo e Palmeira dos Índios.",
+  "lang": "pt-BR",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#05070b",
+  "theme_color": "#05070b",
+  "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

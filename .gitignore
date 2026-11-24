@@ -1,0 +1,18 @@
+# dependências e build
+node_modules/
+dist/
+
+# variáveis locais (chaves do Firebase etc.) — nunca vão para o repositório
+.env
+.env.local
+.env.*.local
+
+# sistema / editor
+.DS_Store
+Thumbs.db
+*.log
+.vscode/
+.idea/
+
+# configurações locais do Claude Code
+.claude/settings.local.json

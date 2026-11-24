@@ -1,0 +1,39 @@
+# Render — site estático (plano gratuito).
+#
+# Opção A (Blueprint): no painel do Render, New > Blueprint > escolha este repositório.
+# Opção B (manual):    New > Static Site, com
+#                        Build Command:      npm ci && npm run build
+#                        Publish Directory:  dist
+services:
+  - type: web
+    name: checklist-veicular
+    runtime: static
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    pullRequestPreviewsEnabled: false
+    headers:
+      # Arquivos com hash no nome nunca mudam: podem ficar guardados no navegador.
+      - path: /assets/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+      # A página e o service worker precisam ser sempre conferidos, para o app se atualizar.
+      - path: /index.html
+        name: Cache-Control
+        value: no-cache
+      - path: /sw.js
+        name: Cache-Control
+        value: no-cache
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    # Banco de dados (opcional aqui: também pode ficar em src/config/firebase.js)
+    # envVars:
+    #   - key: VITE_FIREBASE_PROJECT_ID
+    #     value: id-do-seu-projeto

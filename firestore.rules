@@ -1,0 +1,34 @@
+// Regras do Cloud Firestore para o Checklist Veicular.
+// Cole este conteúdo em: Console do Firebase > Firestore Database > Regras > Publicar.
+//
+// O que elas fazem:
+//  - só a coleção "checklists" é acessível;
+//  - gravações precisam ter o formato de um checklist (campos e tamanhos conferidos);
+//  - ninguém apaga um registro de vez sem antes marcá-lo como excluído (o app faz isso
+//    quando a administração exclui).
+//
+// Atenção: o app é um site estático, sem login de usuário. Qualquer pessoa que descubra
+// o ID do projeto consegue ler e gravar registros neste formato. Os dados aqui (KM, nome
+// do motorista, situação dos itens) não são sigilosos; se um dia forem, o caminho é
+// ativar o Firebase Authentication e trocar "if true" por "if request.auth != null".
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /checklists/{id} {
+      allow read: if true;
+      allow create, update: if valido(request.resource.data, id);
+      allow delete: if resource.data.excluido == true;
+    }
+    function valido(d, id) {
+      return d.id == id
+        && d.unidade is string && d.unidade.size() <= 40
+        && d.motoristaNome is string && d.motoristaNome.size() > 0 && d.motoristaNome.size() <= 80
+        && d.kmSaida is int && d.kmSaida >= 0 && d.kmSaida <= 9999999
+        && (d.kmVolta == null || (d.kmVolta is int && d.kmVolta >= d.kmSaida && d.kmVolta <= 9999999))
+        && d.itens is map && d.itens.size() <= 20
+        && d.outros is string && d.outros.size() <= 2000
+        && d.atualizadoEm is int;
+    }
+  }
+}

@@ -1,0 +1,6 @@
+dist
+node_modules
+public
+src/reactbits
+src/assets
+package-lock.json
