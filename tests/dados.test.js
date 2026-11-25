@@ -2,14 +2,17 @@
 
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { beforeEach, describe, it } from 'node:test';
 
-import { identificar } from '../src/lib/acesso.js';
-import { banco } from '../src/lib/banco.js';
+import { MOTORISTAS, UNIDADES, motoristasDaUnidade, unidadePorId } from '../src/config/frota.js';
+import { identificar, lembrarMotorista, motoristaDaUnidade } from '../src/lib/acesso.js';
+import { banco, gravarPreferencia } from '../src/lib/banco.js';
 import { gerarCsv } from '../src/lib/exportar.js';
 import { paraKm } from '../src/lib/formato.js';
 import { hashDoCodigo, sha256 } from '../src/lib/hash.js';
 import { codificarCampos, criarNuvem, decodificarCampos } from '../src/lib/nuvem.js';
+import { apagarRascunho, gravarRascunho, lerRascunho, novoRascunho } from '../src/lib/rascunho.js';
 import {
   criarRegistro,
   emRota,
@@ -65,6 +68,57 @@ describe('códigos de acesso', () => {
     }
     assert.notEqual(hashDoCodigo('00000'), hashDoCodigo('00001'));
     assert.equal(hashDoCodigo(' 00000 '), hashDoCodigo('00000'), 'espaços em volta são ignorados');
+  });
+});
+
+describe('motoristas', () => {
+  const penedo = unidadePorId('penedo');
+  const palmeira = unidadePorId('palmeira');
+  beforeEach(() => {
+    for (const unidade of UNIDADES) {
+      gravarPreferencia(`motorista.${unidade.id}`, null);
+      apagarRascunho(unidade);
+    }
+  });
+
+  it('cada unidade mostra os motoristas dela e "Outro"', () => {
+    const ids = unidade => motoristasDaUnidade(unidade).map(motorista => motorista.id);
+    assert.deepEqual(ids(penedo), ['rogerio', 'marcio', 'outro']);
+    assert.deepEqual(ids(palmeira), ['caique', 'pedro', 'outro']);
+    for (const unidade of UNIDADES) {
+      assert.ok(ids(unidade).includes(unidade.motoristaPadrao), `padrão de ${unidade.nome} está nas opções`);
+    }
+  });
+
+  it('todo motorista com foto tem o arquivo e o enquadramento do crachá', () => {
+    for (const motorista of MOTORISTAS.filter(item => item.foto)) {
+      assert.ok(existsSync(new URL(`../src/assets/fotos/${motorista.foto}.webp`, import.meta.url)), motorista.foto);
+      assert.ok(
+        motorista.foco.every(valor => valor >= 0 && valor <= 1),
+        `foco de ${motorista.nome}`
+      );
+      assert.ok(motorista.zoom >= 1, `zoom de ${motorista.nome}`);
+    }
+  });
+
+  it('lembra o último motorista da unidade, mas só se ele for opção dela', () => {
+    assert.equal(motoristaDaUnidade(penedo).id, 'rogerio', 'sem escolha salva: o padrão');
+    lembrarMotorista(penedo, 'marcio');
+    assert.equal(motoristaDaUnidade(penedo).id, 'marcio');
+    lembrarMotorista(palmeira, 'rogerio'); // escolha antiga, de quando todos apareciam nas duas unidades
+    assert.equal(motoristaDaUnidade(palmeira).id, 'caique');
+    lembrarMotorista(palmeira, 'outro', '  João   da Silva ');
+    assert.deepEqual(motoristaDaUnidade(palmeira), { id: 'outro', nomeOutro: 'João da Silva' });
+  });
+
+  it('rascunho com motorista de outra unidade volta para o motorista da unidade', () => {
+    const rascunho = novoRascunho(penedo);
+    gravarRascunho(penedo, { ...rascunho, dados: { ...rascunho.dados, motoristaId: 'caique', kmSaida: '45210' } });
+    const lido = lerRascunho(penedo);
+    assert.equal(lido.dados.motoristaId, 'rogerio');
+    assert.equal(lido.dados.kmSaida, '45210', 'o resto do rascunho fica como estava');
+    gravarRascunho(penedo, { ...rascunho, dados: { ...rascunho.dados, motoristaId: 'marcio' } });
+    assert.equal(lerRascunho(penedo).dados.motoristaId, 'marcio');
   });
 });
 

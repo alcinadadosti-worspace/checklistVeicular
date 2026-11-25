@@ -7,7 +7,7 @@ import { ResumoDosItens } from '../componentes/DetalheChecklist.jsx';
 import { FundoFibras } from '../componentes/Fundos.jsx';
 import Icone from '../componentes/Icone.jsx';
 import { PalcoVeiculo } from '../componentes/Veiculo.jsx';
-import { ITENS, MOTORISTAS, motoristaPorId, nomeDoVeiculo } from '../config/frota.js';
+import { ITENS, MOTORISTAS, motoristaPorId, motoristasDaUnidade, nomeDoVeiculo } from '../config/frota.js';
 import { lembrarMotorista, nomeDoMotorista } from '../lib/acesso.js';
 import { banco } from '../lib/banco.js';
 import { fotoDe } from '../lib/fotos.js';
@@ -37,6 +37,23 @@ const deslizar = {
 /* Passo 1 — Motorista                                                 */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Enquadra a miniatura da foto como o crachá (src/lib/cracha.js): o ponto de `foco` no centro,
+ * aproximado pelo `zoom`, sem deixar a foto descobrir as bordas.
+ */
+const enquadrarMiniatura = ({ foco, zoom }) => {
+  const origem = foco.map(ponto => {
+    if (zoom <= 1) return ponto;
+    const inicio = Math.min(Math.max(ponto - 0.5 / zoom, 0), 1 - 1 / zoom); // borda da parte visível
+    return (zoom * inicio) / (zoom - 1); // origem do scale() que leva essa borda até a borda da miniatura
+  });
+  return {
+    objectPosition: `${foco[0] * 100}% ${foco[1] * 100}%`,
+    transform: `scale(${zoom})`,
+    transformOrigin: `${origem[0] * 100}% ${origem[1] * 100}%`
+  };
+};
+
 function PassoMotorista({ unidade, dados, mudar, erro }) {
   const pessoa = motoristaPorId(dados.motoristaId) || MOTORISTAS[0];
   const nome = nomeDoMotorista(dados.motoristaId, dados.nomeOutro);
@@ -62,7 +79,7 @@ function PassoMotorista({ unidade, dados, mudar, erro }) {
         <p className="texto-2">Escolha o nome do motorista. O crachá muda na hora.</p>
 
         <div className="motoristas" role="radiogroup" aria-label="Nome do motorista">
-          {MOTORISTAS.map(motorista => {
+          {motoristasDaUnidade(unidade).map(motorista => {
             const ativo = dados.motoristaId === motorista.id;
             const foto = fotoDe(motorista.foto);
             return (
@@ -78,28 +95,14 @@ function PassoMotorista({ unidade, dados, mudar, erro }) {
               >
                 <span className="motorista__foto">
                   {foto ? (
-                    <img
-                      src={foto}
-                      alt=""
-                      style={{
-                        objectPosition: `${motorista.foco[0] * 100}% ${motorista.foco[1] * 100}%`,
-                        transform: `scale(${motorista.zoom})`,
-                        transformOrigin: `${motorista.foco[0] * 100}% ${motorista.foco[1] * 100}%`
-                      }}
-                    />
+                    <img src={foto} alt="" style={enquadrarMiniatura(motorista)} />
                   ) : (
                     <Icone nome="usuario" tamanho={26} />
                   )}
                 </span>
                 <span className="motorista__textos">
                   <strong>{motorista.nome}</strong>
-                  <span>
-                    {motorista.id === 'outro'
-                      ? 'Digitar outro nome'
-                      : motorista.id === unidade.motoristaPadrao
-                        ? `Motorista de ${unidade.nome}`
-                        : 'Motorista'}
-                  </span>
+                  <span>{motorista.id === 'outro' ? 'Digitar outro nome' : `Motorista de ${unidade.nome}`}</span>
                 </span>
                 <span className="motorista__marca" aria-hidden="true">
                   <Icone nome="check" tamanho={16} espessura={2.6} />

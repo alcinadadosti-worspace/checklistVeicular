@@ -4,7 +4,7 @@
 // dele com os hashes de src/config/frota.js. Importante: é uma barreira simples (o site
 // é estático e roda inteiro no navegador), não um controle de acesso forte.
 
-import { ADMIN, UNIDADES, motoristaPorId, unidadePorId } from '../config/frota.js';
+import { ADMIN, UNIDADES, motoristaPorId, motoristasDaUnidade, unidadePorId } from '../config/frota.js';
 import { gravarPreferencia, lerPreferencia } from './banco.js';
 import { limparNome } from './formato.js';
 import { hashDoCodigo } from './hash.js';
@@ -34,10 +34,14 @@ export const lerSessao = () => sessaoValida(lerPreferencia('sessao'));
 export const gravarSessao = sessao => gravarPreferencia('sessao', sessaoValida(sessao));
 export const encerrarSessao = () => gravarPreferencia('sessao', null);
 
-/** Motorista usado por último neste aparelho para a unidade (ou o motorista padrão dela). */
+/**
+ * Motorista usado por último neste aparelho para a unidade, se ele ainda for uma das opções
+ * dela (senão, o motorista padrão da unidade).
+ */
 export function motoristaDaUnidade(unidade) {
   const salvo = lerPreferencia(`motorista.${unidade.id}`);
-  const motorista = motoristaPorId(salvo?.id) || motoristaPorId(unidade.motoristaPadrao);
+  const motorista =
+    motoristasDaUnidade(unidade).find(opcao => opcao.id === salvo?.id) || motoristaPorId(unidade.motoristaPadrao);
   const nomeOutro = motorista.id === 'outro' ? limparNome(salvo?.nome) : '';
   if (motorista.id === 'outro' && !nomeOutro) {
     return { id: unidade.motoristaPadrao, nomeOutro: '' };

@@ -53,11 +53,14 @@ export const ADMIN = {
   codigoHash: '6087ba69f1003fb0eb081380751aac04f624d2615e3df71071d941cac79ed437'
 };
 
-// As três opções do campo "Nome do motorista". "Outro" abre um campo para digitar o nome
-// e o crachá aparece com a silhueta.
+// Opções do campo "Nome do motorista". Cada unidade mostra os motoristas dela (`unidade`), na
+// ordem desta lista, e por último "Outro", que abre um campo para digitar o nome (o crachá
+// aparece com a silhueta). Quem dirigir o carro da outra unidade usa "Outro".
 export const MOTORISTAS = [
-  { id: 'rogerio', nome: 'Rogerio', foto: 'rogerio', foco: [0.5, 0.44], zoom: 1 },
-  { id: 'caique', nome: 'Caique', foto: 'caique', foco: [0.5, 0.41], zoom: 2.8 },
+  { id: 'rogerio', nome: 'Rogerio', unidade: 'penedo', foto: 'rogerio', foco: [0.5, 0.44], zoom: 1 },
+  { id: 'marcio', nome: 'Marcio', unidade: 'penedo', foto: 'marcio', foco: [0.47, 0.52], zoom: 1.35 },
+  { id: 'caique', nome: 'Caique', unidade: 'palmeira', foto: 'caique', foco: [0.5, 0.41], zoom: 2.8 },
+  { id: 'pedro', nome: 'Pedro', unidade: 'palmeira', foto: 'pedro', foco: [0.6, 0.55], zoom: 2.1 },
   { id: 'outro', nome: 'Outro', foto: null }
 ];
 
@@ -79,6 +82,9 @@ export const SITUACOES = [
 
 export const unidadePorId = id => UNIDADES.find(unidade => unidade.id === id) || null;
 export const motoristaPorId = id => MOTORISTAS.find(motorista => motorista.id === id) || null;
+/** Opções do passo "Motorista" de uma unidade: os motoristas dela e "Outro". */
+export const motoristasDaUnidade = unidade =>
+  MOTORISTAS.filter(motorista => !motorista.unidade || motorista.unidade === unidade.id);
 export const itemPorId = id => ITENS.find(item => item.id === id) || null;
 export const situacaoPorId = id => SITUACOES.find(situacao => situacao.id === id) || null;
 export const nomeDoVeiculo = unidade => `${unidade.veiculo.nome} ${unidade.veiculo.versao}`;

@@ -23,6 +23,13 @@ const CODIGOS = Object.fromEntries(
     .filter(par => par.length === 2)
 );
 const CODIGO = CODIGOS[UNIDADE];
+// Motoristas que aparecem no passo 1 de cada unidade (o primeiro é o padrão), antes do "Outro".
+const MOTORISTAS_DA_UNIDADE = { penedo: ['Rogerio', 'Marcio'], palmeira: ['Caique', 'Pedro'] };
+const [PRINCIPAL, SEGUNDO] = MOTORISTAS_DA_UNIDADE[UNIDADE] || [];
+if (!PRINCIPAL) {
+  console.log(`UNIDADE desconhecida: ${UNIDADE}`);
+  process.exit(1);
+}
 if (!CODIGO) {
   console.log(`Informe o código da unidade: CODIGOS_TESTE="${UNIDADE}=…"`);
   process.exit(1);
@@ -83,14 +90,24 @@ const conferir = (descricao, condicao, detalhe = '') => {
     await page.waitForSelector('.tela--checklist');
     await page.waitForTimeout(4500);
     await foto('passo1-motorista');
+    const opcoes = await page.locator('.motorista strong').allTextContents();
+    conferir(
+      'opções de motorista da unidade',
+      opcoes.join('|') === [PRINCIPAL, SEGUNDO, 'Outro'].join('|'),
+      opcoes.join(', ')
+    );
+    conferir(
+      'motorista padrão já vem marcado',
+      (await page.locator('.motorista[data-ativo] strong').textContent()) === PRINCIPAL
+    );
     await tocar('.motorista:has-text("Outro")');
     await page.fill('#nome-outro', 'Marcos Vinícius');
     await page.waitForTimeout(2500);
     await foto('passo1-outro');
-    await tocar('.motorista:has-text("Caique")');
+    await tocar(`.motorista:has-text("${SEGUNDO}")`);
     await page.waitForTimeout(2200);
-    await foto('passo1-caique');
-    await tocar('.motorista:has-text("Rogerio")');
+    await foto(`passo1-${SEGUNDO.toLowerCase()}`);
+    await tocar(`.motorista:has-text("${PRINCIPAL}")`);
     await page.waitForTimeout(1200);
 
     // passo 2 — veículo e KM
@@ -183,7 +200,7 @@ const conferir = (descricao, condicao, detalhe = '') => {
     conferir('um registro gravado no aparelho', registros.length === 1, `${registros.length}`);
     conferir(
       'dados do registro',
-      r.motoristaNome === 'Rogerio' &&
+      r.motoristaNome === PRINCIPAL &&
         r.kmSaida === 45210 &&
         r.kmVolta === 45392 &&
         r.itens?.estepe === 'faltante' &&
