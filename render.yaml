@@ -4,6 +4,8 @@
 # Opção B (manual):    New > Static Site, com
 #                        Build Command:      npm ci && npm run build
 #                        Publish Directory:  dist
+#                      Nessa opção (a usada no site atual) os "headers" abaixo não são lidos;
+#                      são opcionais e podem ser copiados no painel do site, em Headers.
 services:
   - type: web
     name: checklist-veicular

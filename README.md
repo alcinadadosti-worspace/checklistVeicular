@@ -12,7 +12,8 @@ automaticamente. A administração acompanha as duas unidades num painel.
 ## Como o motorista usa
 
 1. Digita o código da unidade.
-2. **Motorista** — escolhe Rogerio, Caique ou _Outro_ (digitando o nome). O crachá muda na hora.
+2. **Motorista** — escolhe um motorista da unidade (Penedo: Rogerio ou Marcio; Palmeira dos Índios:
+   Caique ou Pedro) ou _Outro_ (digitando o nome). O crachá muda na hora.
 3. **Veículo** — informa o KM de saída. Se já voltou, liga "Já voltei" e informa também o KM de volta.
 4. **Inspeção** — marca cada item como _Bom_, _Ruim_ ou _Faltante / Não funciona_ e, se quiser,
    escreve algo em _Outros_.
@@ -42,14 +43,21 @@ Há também testes de navegador em `tests/e2e` e um teste de integração com o 
 
 No painel do Render: **New → Static Site**, escolha este repositório e preencha:
 
-| Campo             | Valor                    |
-| ----------------- | ------------------------ |
+| Campo             | Valor                     |
+| ----------------- | ------------------------- |
 | Build Command     | `npm ci && npm run build` |
-| Publish Directory | `dist`                   |
+| Publish Directory | `dist`                    |
 
 (Ou **New → Blueprint**: o arquivo `render.yaml` já traz essas configurações.)
 
-A cada `git push` o Render publica de novo sozinho.
+A cada `git push` o Render publica de novo sozinho, se o **Auto-Deploy** estiver ligado (no painel
+do site: **Settings → Build & Deploy → Auto-Deploy**). Se não estiver, publique à mão:
+**Manual Deploy → Deploy latest commit**.
+
+O site atual foi criado como **Static Site**. Nesse modo o Render não lê os cabeçalhos do
+`render.yaml` (só no Blueprint) e usa os dele, que já bastam: a página e o service worker são
+conferidos a cada visita, então o app se atualiza sozinho. Os do `render.yaml` são uma otimização
+opcional — para usá-los, copie-os no painel do site, em **Headers**.
 
 ## Banco de dados (Firebase · Cloud Firestore)
 
@@ -105,16 +113,16 @@ Tudo fica em [`src/config/frota.js`](src/config/frota.js): unidades, veículos, 
 
 O código de cada um está em `src/reactbits/`, copiado do registro oficial ([reactbits.dev](https://reactbits.dev)).
 
-| Componente   | Onde aparece                                                                                  |
-| ------------ | --------------------------------------------------------------------------------------------- |
-| Lanyard      | Crachá com foto: tela inicial, passo "Motorista" e painel da administração                    |
-| ModelViewer  | Carro da unidade em 3D: tela inicial, passo "Veículo" e painel da administração               |
-| GridScan     | "Sala de varredura" atrás do carro                                                             |
-| GhostFibers  | Fundo do login, do crachá no passo "Motorista" e da tela de sucesso                           |
-| Radar        | Viagem em andamento, registro do retorno e painel da administração                            |
-| SloshGauge   | Tanque de progresso da inspeção e "condição" do veículo de cada unidade                       |
-| CometDial    | Condição do veículo na revisão, KM rodados no retorno e seletor de período da administração   |
-| FolderFloat  | Pasta de checklists: histórico, tela de sucesso e painel da administração                     |
+| Componente  | Onde aparece                                                                                |
+| ----------- | ------------------------------------------------------------------------------------------- |
+| Lanyard     | Crachá com foto: tela inicial, passo "Motorista" e painel da administração                  |
+| ModelViewer | Carro da unidade em 3D: tela inicial, passo "Veículo" e painel da administração             |
+| GridScan    | "Sala de varredura" atrás do carro                                                          |
+| GhostFibers | Fundo do login, do crachá no passo "Motorista" e da tela de sucesso                         |
+| Radar       | Viagem em andamento, registro do retorno e painel da administração                          |
+| SloshGauge  | Tanque de progresso da inspeção e "condição" do veículo de cada unidade                     |
+| CometDial   | Condição do veículo na revisão, KM rodados no retorno e seletor de período da administração |
+| FolderFloat | Pasta de checklists: histórico, tela de sucesso e painel da administração                   |
 
 No `ModelViewer` há duas pequenas adições (comentadas no topo do arquivo): um espaço para a
 iluminação própria do app e a opção de inclinar a câmera em vez do modelo.

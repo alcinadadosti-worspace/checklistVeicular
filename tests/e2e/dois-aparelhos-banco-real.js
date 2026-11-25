@@ -2,8 +2,9 @@
 //   A = celular do motorista (Penedo)      B = computador da administração.
 // Confere: envio e retorno chegam ao outro aparelho, fila offline, exclusão pela administração.
 //
-// SEGURANÇA: só cria e mexe em registros com motorista "TESTE AUTOMATICO" e apaga todos no final
-// (mesmo se o teste falhar). Enquanto roda, a administração pode ver esse registro por ~1 minuto.
+// SEGURANÇA: só cria e mexe em registros com motorista "TESTE AUTOMATICO" e exclui todos no final,
+// mesmo se o teste falhar (como o botão "Excluir" do app: ficam no banco marcados como excluídos e
+// não aparecem em lugar nenhum). Enquanto roda, a administração pode ver esse registro por ~1 minuto.
 //
 // Como rodar (com `npm run build && npm run preview` aberto em outro terminal):
 //   CODIGOS_TESTE="penedo=…,admin=…" node ~/.claude/skills/playwright/run.js tests/e2e/dois-aparelhos-banco-real.js
@@ -54,22 +55,36 @@ const registrosDeTeste = async () => {
   if (!resposta.ok) throw new Error(`consulta ao banco falhou: HTTP ${resposta.status}`);
   return (await resposta.json()).map(linha => linha.document).filter(Boolean);
 };
-// Marca como excluído (as regras só deixam apagar o que já está excluído) e apaga.
+const visiveis = documentos => documentos.filter(documento => !documento.fields?.excluido?.booleanValue);
+// Exclui do mesmo jeito que o botão "Excluir" do app: marca `excluido`, com `atualizadoEm` novo e o
+// carimbo do servidor em `servidorEm`, para que todo aparelho que chegou a baixar o registro de teste
+// (a administração aberta durante o teste, por exemplo) também o esconda na próxima sincronização.
+// Não apaga o documento de vez: um documento apagado nunca chega aos aparelhos, e o registro de
+// teste ficaria preso em quem o baixou.
 const limparBanco = async () => {
-  const documentos = await registrosDeTeste();
-  for (const documento of documentos) {
-    if (!documento.fields?.excluido?.booleanValue) {
-      const marcar = await fetch(`${RAIZ}${documento.name}?updateMask.fieldPaths=excluido`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fields: { excluido: { booleanValue: true } } })
-      });
-      if (!marcar.ok) console.log(`  (limpeza: não consegui marcar ${documento.name}: HTTP ${marcar.status})`);
-    }
-    const apagar = await fetch(`${RAIZ}${documento.name}`, { method: 'DELETE' });
-    if (!apagar.ok) console.log(`  (limpeza: não consegui apagar ${documento.name}: HTTP ${apagar.status})`);
+  let marcados = 0;
+  for (const documento of visiveis(await registrosDeTeste())) {
+    const resposta = await fetch(`${RAIZ}${DOCUMENTOS}:commit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        writes: [
+          {
+            update: {
+              name: documento.name,
+              fields: { excluido: { booleanValue: true }, atualizadoEm: { integerValue: String(Date.now()) } }
+            },
+            updateMask: { fieldPaths: ['excluido', 'atualizadoEm'] },
+            updateTransforms: [{ fieldPath: 'servidorEm', setToServerValue: 'REQUEST_TIME' }],
+            currentDocument: { exists: true }
+          }
+        ]
+      })
+    });
+    if (resposta.ok) marcados += 1;
+    else console.log(`  (limpeza: não consegui excluir ${documento.name}: HTTP ${resposta.status})`);
   }
-  return documentos.length;
+  return marcados;
 };
 
 (async () => {
@@ -155,7 +170,7 @@ const limparBanco = async () => {
 
   try {
     const sobras = await limparBanco();
-    if (sobras) console.log(`  (removidos ${sobras} registro(s) de teste que tinham sobrado de outra execução)`);
+    if (sobras) console.log(`  (excluídos ${sobras} registro(s) de teste que tinham sobrado de outra execução)`);
 
     console.log('1) Motorista entra e o app sincroniza com a nuvem');
     await entrar(A, COD_UNIDADE);
@@ -235,15 +250,15 @@ const limparBanco = async () => {
   } finally {
     await browser.close();
     try {
-      const removidos = await limparBanco();
-      const restantes = (await registrosDeTeste()).length;
+      const excluidos = await limparBanco();
+      const restantes = visiveis(await registrosDeTeste()).length;
       conferir(
-        'banco limpo (registros de teste apagados)',
+        'nenhum registro de teste visível no banco',
         restantes === 0,
-        `${removidos} removido(s), ${restantes} restante(s)`
+        `${excluidos} excluído(s) na limpeza, ${restantes} ainda visível(is)`
       );
     } catch (erro) {
-      conferir('banco limpo (registros de teste apagados)', false, erro.message);
+      conferir('nenhum registro de teste visível no banco', false, erro.message);
     }
   }
   conferir('sem erros de console ou de rede', erros.length === 0, [...new Set(erros)].slice(0, 5).join(' | '));
