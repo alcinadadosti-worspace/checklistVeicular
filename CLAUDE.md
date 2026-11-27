@@ -56,14 +56,16 @@ Recriar o site com o GitHub conectado também resolveria, mas muda o endereço. 
 versão nova entrou no ar, comparar o `index-*.js` citado na página com o de `dist/index.html` de
 um build local (o build é determinístico).
 
-**Pendente:** `dois-aparelhos-banco-real.js` no site publicado (celular + computador; o registro
-"TESTE AUTOMATICO" aparece uns 2 min no painel da administração e é excluído no fim) — perguntado
-ao usuário em 27/11 se pode rodar; esperar o OK e um horário sem uso real.
+**Site + banco conferidos em 27/11 (~10h15):** `dois-aparelhos-banco-real.js` passou no site
+publicado (envio, retorno, offline, exclusão entre aparelhos) e os 2 registros "TESTE AUTOMATICO"
+ficaram no banco com `excluido: true`. O usuário achou que o banco "não estava conectado"
+(provavelmente porque o painel está vazio: todos os registros estão excluídos); o app ainda
+**não está em uso real** (dito por ele em 27/11).
 
 **Banco de produção:** os 2 checklists de teste do usuário (24/11) foram excluídos em 25/11 a pedido
 dele — ficam no banco com `excluido: true` (a marcação que avisa os outros aparelhos) e não
-aparecem no app. A limpeza de `dois-aparelhos-banco-real.js` passou a fazer o mesmo (25/11, ainda
-não rodada): não apaga documento de vez, porque um documento apagado nunca chega aos aparelhos que
+aparecem no app. A limpeza de `dois-aparelhos-banco-real.js` faz o mesmo (rodada em 27/11, deixou
+2 registros de teste excluídos; o banco tem 4 documentos, nenhum visível): não apaga documento de vez, porque um documento apagado nunca chega aos aparelhos que
 já tinham baixado o registro, que ficaria preso neles.
 
 **Sem versionar:** `img/separacao-lote-2026-11-24_1633.pdf` (não é deste app) — **não fazer commit**.
