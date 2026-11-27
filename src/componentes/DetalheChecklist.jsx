@@ -2,6 +2,7 @@ import { ITENS, unidadePorId } from '../config/frota.js';
 import { dataHora, duracao, km, numero } from '../lib/formato.js';
 import { emRota, kmRodados, resumoDosItens } from '../lib/registros.js';
 import { SeloSituacao } from './Basicos.jsx';
+import { GaleriaFotos } from './Fotos.jsx';
 import Icone from './Icone.jsx';
 
 /** Lista dos itens inspecionados com o selo de cada um. */
@@ -103,6 +104,15 @@ export default function DetalheChecklist({ registro, pendente = false }) {
       <p className="detalhe__outros" data-vazio={registro.outros ? undefined : ''}>
         {registro.outros || 'Nada informado.'}
       </p>
+
+      {registro.fotos?.length ? (
+        <>
+          <h3 className="detalhe__titulo">
+            {registro.fotos.length === 1 ? 'Foto' : `Fotos (${registro.fotos.length})`}
+          </h3>
+          <GaleriaFotos fotos={registro.fotos} />
+        </>
+      ) : null}
     </div>
   );
 }

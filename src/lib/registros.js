@@ -3,6 +3,7 @@
 
 import { ITENS, SITUACOES, nomeDoVeiculo } from '../config/frota.js';
 import { limparNome } from './formato.js';
+import { resumoDasFotos } from './fotosDoChecklist.js';
 
 export const KM_MAXIMO = 9_999_999;
 const IDS_ITENS = ITENS.map(item => item.id);
@@ -50,7 +51,7 @@ export function validarRetorno(registro, kmVolta) {
 
 /** Monta o registro que vai para o banco. A data e a hora são capturadas aqui, automaticamente. */
 export function criarRegistro(
-  { unidade, motoristaId, motoristaNome, kmSaida, kmVolta = null, itens, outros = '' },
+  { unidade, motoristaId, motoristaNome, kmSaida, kmVolta = null, itens, outros = '', fotos = [] },
   agora = new Date()
 ) {
   const instante = agora.getTime();
@@ -71,6 +72,7 @@ export function criarRegistro(
     outros: String(outros ?? '')
       .trim()
       .slice(0, 2000),
+    fotos: resumoDasFotos(fotos), // só id e tamanho; a imagem vai à parte (coleção `fotos`)
     excluido: false,
     criadoEm: instante,
     atualizadoEm: instante

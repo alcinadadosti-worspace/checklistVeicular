@@ -182,6 +182,55 @@ const conferir = (descricao, condicao, detalhe = '') => {
       await page.waitForTimeout(250);
     }
     await page.fill('#outros', 'Barulho na suspensão dianteira ao passar em lombada.');
+
+    // fotos em "Outros": uma foto grande de celular (2400×1800) é reduzida antes de guardar
+    const fotoDeCelular = async rotulo =>
+      Buffer.from(
+        await page.evaluate(texto => {
+          const canvas = document.createElement('canvas');
+          canvas.width = 2400;
+          canvas.height = 1800;
+          const g = canvas.getContext('2d');
+          for (let x = 0; x < 2400; x += 40) {
+            for (let y = 0; y < 1800; y += 40) {
+              g.fillStyle = `hsl(${(x + y) % 360} 60% ${30 + ((x * y) % 40)}%)`;
+              g.fillRect(x, y, 40, 40);
+            }
+          }
+          g.fillStyle = '#fff';
+          g.font = 'bold 260px sans-serif';
+          g.fillText(texto, 200, 1000);
+          return canvas.toDataURL('image/jpeg', 0.95).split(',')[1];
+        }, rotulo),
+        'base64'
+      );
+    const entradaDeFoto = '.campo-fotos input[type="file"]';
+    await page.locator('.campo-fotos').scrollIntoViewIfNeeded();
+    conferir(
+      'botão de foto aparece em "Outros"',
+      (await page.locator('.campo--outros .foto--adicionar').count()) === 1
+    );
+    await page.setInputFiles(entradaDeFoto, {
+      name: 'pneu.jpg',
+      mimeType: 'image/jpeg',
+      buffer: await fotoDeCelular('PNEU')
+    });
+    await page.waitForFunction(() => document.querySelectorAll('.campo-fotos .foto img').length === 1, null, {
+      timeout: 15000
+    });
+    await page.setInputFiles(entradaDeFoto, {
+      name: 'risco.jpg',
+      mimeType: 'image/jpeg',
+      buffer: await fotoDeCelular('RISCO')
+    });
+    await page.waitForFunction(() => document.querySelectorAll('.campo-fotos .foto img').length === 2, null, {
+      timeout: 15000
+    });
+    await page.waitForTimeout(600);
+    await foto('passo2-fotos');
+    await tocar('.campo-fotos .foto__remover >> nth=1');
+    await page.waitForFunction(() => document.querySelectorAll('.campo-fotos .foto img').length === 1);
+    conferir('foto anexada e outra removida', true);
     await page.waitForTimeout(900);
     await foto('passo2-completo', { fullPage: true });
 
@@ -190,6 +239,7 @@ const conferir = (descricao, condicao, detalhe = '') => {
     await page.waitForSelector('.passo--revisao');
     await page.waitForTimeout(2200);
     await foto('passo3-revisao', { fullPage: true });
+    conferir('revisão mostra a foto', (await page.locator('.passo--revisao .fotos img').count()) === 1);
     await continuar();
     await page.waitForSelector('.tela--sucesso', { timeout: 15000 });
     await page.waitForTimeout(3800);
@@ -230,6 +280,40 @@ const conferir = (descricao, condicao, detalhe = '') => {
     await page.waitForTimeout(900);
     conferir('ficha do checklist abre', (await page.locator('.folha').count()) === 1);
     await foto('detalhe');
+    await page.locator('.folha .fotos .foto__abrir').scrollIntoViewIfNeeded();
+    await page.waitForFunction(() => document.querySelectorAll('.folha .fotos img').length === 1);
+    await page.locator('.folha .fotos .foto__abrir').click();
+    await page.waitForSelector('.visor img');
+    await page.waitForTimeout(500);
+    await foto('foto-tela-cheia');
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(600);
+    conferir(
+      'Esc fecha só a foto, a ficha continua aberta',
+      (await page.locator('.visor').count()) === 0 && (await page.locator('.folha').count()) === 1
+    );
+    const guardada = await page.evaluate(
+      () =>
+        new Promise(resolver => {
+          const pedido = indexedDB.open('clv-fotos', 1);
+          pedido.onsuccess = () => {
+            const leitura = pedido.result.transaction('fotos').objectStore('fotos').getAll();
+            leitura.onsuccess = () => resolver(leitura.result.map(f => ({ ...f, bytes: f.bytes.byteLength })));
+          };
+          pedido.onerror = () => resolver([]);
+        })
+    );
+    const g = guardada[0] || {};
+    conferir(
+      'foto reduzida e guardada no aparelho, na fila de envio',
+      guardada.length === 1 &&
+        g.largura === 1280 &&
+        g.altura === 960 &&
+        g.bytes <= 600 * 1024 &&
+        g.registroId &&
+        !g.enviada,
+      `${guardada.length} foto(s); ${g.largura}×${g.altura}; ${Math.round((g.bytes || 0) / 1024)} KB`
+    );
 
     const registros = await page.evaluate(() =>
       Object.values(JSON.parse(localStorage.getItem('clv.dados.v1') || '{"registros":{}}').registros)
@@ -244,7 +328,9 @@ const conferir = (descricao, condicao, detalhe = '') => {
         r.kmVolta === 45392 &&
         r.itens?.estepe === 'faltante' &&
         r.itens?.pneusTraseiros === 'ruim' &&
-        /Barulho/.test(r.outros || ''),
+        /Barulho/.test(r.outros || '') &&
+        r.fotos?.length === 1 &&
+        r.fotos[0].largura === 1280,
       `${r.motoristaNome} ${r.kmSaida}->${r.kmVolta}`
     );
     conferir(

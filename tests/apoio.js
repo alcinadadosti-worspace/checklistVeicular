@@ -1,13 +1,15 @@
-// Apoio para os testes: um Firestore de mentira, em memória, que entende as duas chamadas
-// REST que o app usa (documents:commit e documents:runQuery) e a exclusão de documento.
+// Apoio para os testes: um Firestore de mentira, em memória, que entende as chamadas REST que o
+// app usa (documents:commit e documents:runQuery, exclusão de documento) e a coleção de fotos
+// (gravar, ler um documento e apagar).
 
 import { decodificarCampos } from '../src/lib/nuvem.js';
 
 export function criarFirestoreFalso({ projeto = 'projeto-teste', colecao = 'checklists' } = {}) {
   const documentos = new Map(); // id -> { fields, servidorEm (ms) }
+  const fotos = new Map(); // id -> fields
   const prefixo = `projects/${projeto}/databases/(default)/documents`;
   let relogio = Date.parse('2026-11-24T12:00:00.000Z');
-  const estado = { offline: false, recusar: null, chamadas: [], leituras: 0 };
+  const estado = { offline: false, recusar: null, recusarFoto: null, chamadas: [], leituras: 0 };
 
   const resposta = (status, corpo) => ({
     ok: status >= 200 && status < 300,
@@ -24,6 +26,12 @@ export function criarFirestoreFalso({ projeto = 'projeto-teste', colecao = 'chec
     if (method === 'POST' && caminho.endsWith(`${prefixo}:commit`)) {
       for (const escrita of dados.writes) {
         const id = escrita.update.name.split('/').pop();
+        if (escrita.update.name.startsWith(`${prefixo}/fotos/`)) {
+          if (estado.recusarFoto?.(decodificarCampos(escrita.update.fields)))
+            return resposta(403, { error: { message: 'Missing or insufficient permissions.' } });
+          fotos.set(id, escrita.update.fields);
+          continue;
+        }
         if (!escrita.update.name.startsWith(`${prefixo}/${colecao}/`))
           return resposta(403, { error: { message: 'coleção não permitida' } });
         const registro = decodificarCampos(escrita.update.fields);
@@ -57,7 +65,18 @@ export function criarFirestoreFalso({ projeto = 'projeto-teste', colecao = 'chec
       return resposta(200, linhas.length > 0 ? linhas : [{ readTime: new Date(relogio).toISOString() }]);
     }
 
-    if (method === 'DELETE' && caminho.startsWith(`${prefixo}/${colecao}/`)) {
+    if (method === 'GET' && caminho.includes(`/${prefixo}/fotos/`)) {
+      const id = caminho.split('/').pop();
+      if (!fotos.has(id)) return resposta(404, { error: { message: `No document to get: ${id}` } });
+      return resposta(200, { name: `${prefixo}/fotos/${id}`, fields: fotos.get(id) });
+    }
+
+    if (method === 'DELETE' && caminho.includes(`/${prefixo}/fotos/`)) {
+      fotos.delete(caminho.split('/').pop());
+      return resposta(200, {});
+    }
+
+    if (method === 'DELETE' && caminho.includes(`/${prefixo}/${colecao}/`)) {
       documentos.delete(caminho.split('/').pop());
       return resposta(200, {});
     }
@@ -69,6 +88,7 @@ export function criarFirestoreFalso({ projeto = 'projeto-teste', colecao = 'chec
     requisitar,
     estado,
     documentos,
+    fotos,
     avancarRelogio: ms => {
       relogio += ms;
     },

@@ -2,15 +2,17 @@
 // Cole este conteúdo em: Console do Firebase > Firestore Database > Regras > Publicar.
 //
 // O que elas fazem:
-//  - só a coleção "checklists" é acessível;
-//  - gravações precisam ter o formato de um checklist (campos e tamanhos conferidos);
+//  - só as coleções "checklists" e "fotos" são acessíveis;
+//  - gravações precisam ter o formato de um checklist ou de uma foto (campos e tamanhos
+//    conferidos; foto só JPEG e com até ~900 KB);
 //  - ninguém apaga um registro de vez sem antes marcá-lo como excluído (o app faz isso
-//    quando a administração exclui).
+//    quando a administração exclui); a foto só pode ser apagada depois que o checklist
+//    dela foi marcado como excluído.
 //
 // Atenção: o app é um site estático, sem login de usuário. Qualquer pessoa que descubra
 // o ID do projeto consegue ler e gravar registros neste formato. Os dados aqui (KM, nome
-// do motorista, situação dos itens) não são sigilosos; se um dia forem, o caminho é
-// ativar o Firebase Authentication e trocar "if true" por "if request.auth != null".
+// do motorista, situação dos itens, fotos do veículo) não são sigilosos; se um dia forem, o
+// caminho é ativar o Firebase Authentication e trocar "if true" por "if request.auth != null".
 
 rules_version = '2';
 service cloud.firestore {
@@ -20,6 +22,11 @@ service cloud.firestore {
       allow create, update: if valido(request.resource.data, id);
       allow delete: if resource.data.excluido == true;
     }
+    match /fotos/{id} {
+      allow read: if true;
+      allow create, update: if fotoValida(request.resource.data, id);
+      allow delete: if get(/databases/$(database)/documents/checklists/$(resource.data.registroId)).data.excluido == true;
+    }
     function valido(d, id) {
       return d.id == id
         && d.unidade is string && d.unidade.size() <= 40
@@ -28,7 +35,16 @@ service cloud.firestore {
         && (d.kmVolta == null || (d.kmVolta is int && d.kmVolta >= d.kmSaida && d.kmVolta <= 9999999))
         && d.itens is map && d.itens.size() <= 20
         && d.outros is string && d.outros.size() <= 2000
+        && (!('fotos' in d) || (d.fotos is list && d.fotos.size() <= 4))
         && d.atualizadoEm is int;
+    }
+    function fotoValida(d, id) {
+      return d.id == id
+        && d.registroId is string && d.registroId.size() > 0 && d.registroId.size() <= 60
+        && d.unidade is string && d.unidade.size() <= 40
+        && d.tipo == 'image/jpeg'
+        && d.largura is int && d.altura is int
+        && d.dados is bytes && d.dados.size() > 0 && d.dados.size() <= 900000;
     }
   }
 }

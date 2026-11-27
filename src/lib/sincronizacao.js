@@ -1,15 +1,22 @@
 // Sincronização entre o banco local do aparelho e a nuvem.
 //
-// Ciclo: 1) busca o que mudou na nuvem e junta com o local; 2) envia o que está pendente.
+// Ciclo: 1) busca o que mudou na nuvem e junta com o local; 2) envia os checklists pendentes;
+// 3) envia as fotos anexadas que ainda não subiram.
 // Roda ao abrir o app, ao voltar a internet, ao voltar para a aba, depois de cada
 // gravação e de tempos em tempos. Se falhar, tenta de novo sozinha (com espera crescente).
 
 import { banco } from './banco.js';
+import { cofreDeFotos } from './fotosDoChecklist.js';
 import { nuvem as nuvemPadrao } from './nuvem.js';
 
 const ESPERAS_APOS_ERRO = [5000, 15000, 30000, 60000, 120000];
 
-export function criarSincronizacao({ nuvem = nuvemPadrao, dados = banco, ambiente = globalThis } = {}) {
+export function criarSincronizacao({
+  nuvem = nuvemPadrao,
+  dados = banco,
+  fotos = cofreDeFotos,
+  ambiente = globalThis
+} = {}) {
   let situacao = {
     ativa: nuvem.ativa,
     fase: nuvem.ativa ? 'aguardando' : 'local', // 'local' | 'aguardando' | 'sincronizando' | 'em-dia' | 'offline' | 'erro'
@@ -42,6 +49,15 @@ export function criarSincronizacao({ nuvem = nuvemPadrao, dados = banco, ambient
     }, espera);
   };
 
+  // Checklist excluído: as fotos dele saem da nuvem e do aparelho (as regras só deixam
+  // apagar a foto depois que o checklist está marcado como excluído).
+  const apagarFotosDe = async registro => {
+    for (const foto of registro.fotos || []) {
+      await nuvem.apagarFoto(foto.id).catch(() => {});
+      await fotos.apagar(foto.id).catch(() => {});
+    }
+  };
+
   const ciclo = async () => {
     // 1) nuvem -> aparelho
     const { registros, cursor } = await nuvem.buscar(dados.cursor());
@@ -50,6 +66,12 @@ export function criarSincronizacao({ nuvem = nuvemPadrao, dados = banco, ambient
     // 2) aparelho -> nuvem
     let recusados = 0;
     let erroDeDados = null;
+    const recusar = erro => {
+      // Um registro ou foto recusado (dados/permissão) não deve travar o envio dos outros.
+      if (erro?.tipo !== 'dados' && erro?.tipo !== 'permissao') throw erro;
+      recusados += 1;
+      erroDeDados = erro;
+    };
     for (const id of dados.pendentes()) {
       const registro = dados.registro(id);
       if (!registro) continue;
@@ -57,13 +79,23 @@ export function criarSincronizacao({ nuvem = nuvemPadrao, dados = banco, ambient
         await nuvem.enviar(registro);
         dados.confirmarEnvio(id, registro.atualizadoEm);
       } catch (erro) {
-        // Um registro recusado (dados/permissão) não deve travar o envio dos outros.
-        if (erro?.tipo === 'dados' || erro?.tipo === 'permissao') {
-          recusados += 1;
-          erroDeDados = erro;
-          continue;
-        }
-        throw erro;
+        recusar(erro);
+        continue;
+      }
+      if (registro.excluido) await apagarFotosDe(registro);
+    }
+
+    // 3) fotos anexadas -> nuvem (depois dos checklists: o texto chega primeiro)
+    for (const foto of await fotos.pendentes()) {
+      if (dados.registro(foto.registroId)?.excluido) {
+        await fotos.apagar(foto.id);
+        continue;
+      }
+      try {
+        await nuvem.enviarFoto(foto);
+        await fotos.marcarEnviada(foto.id);
+      } catch (erro) {
+        recusar(erro);
       }
     }
     if (erroDeDados) {

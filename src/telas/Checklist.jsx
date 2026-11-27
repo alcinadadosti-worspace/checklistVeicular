@@ -3,11 +3,13 @@ import { AnimatePresence, motion } from 'motion/react';
 import { Botao, Topo, transicaoDeTela } from '../componentes/Basicos.jsx';
 import { CampoKm, CarimboDeHora, ItemInspecao } from '../componentes/Campos.jsx';
 import { ResumoDosItens } from '../componentes/DetalheChecklist.jsx';
+import { CampoFotos, GaleriaFotos } from '../componentes/Fotos.jsx';
 import Icone from '../componentes/Icone.jsx';
 import { PalcoVeiculo } from '../componentes/Veiculo.jsx';
 import { ITENS, nomeDoVeiculo } from '../config/frota.js';
 import { nomeDoMotorista } from '../lib/acesso.js';
 import { banco } from '../lib/banco.js';
+import { cofreDeFotos } from '../lib/fotosDoChecklist.js';
 import { km, limparNome, numero, paraKm } from '../lib/formato.js';
 import { useBanco } from '../lib/ganchos.js';
 import { apagarRascunho, gravarRascunho, lerRascunho, novoRascunho } from '../lib/rascunho.js';
@@ -124,7 +126,7 @@ function PassoVeiculo({ unidade, motoristaNome, dados, mudar, erros, ultimo }) {
 /* Passo 2 — Itens inspecionados                                       */
 /* ------------------------------------------------------------------ */
 
-function PassoInspecao({ dados, mudar, erro, cobrar }) {
+function PassoInspecao({ unidade, dados, mudar, mudarFotos, erro, cobrar }) {
   const resumo = resumoDosItens(dados.itens);
   const pior = piorSituacao(dados.itens);
   const cor = pior && pior !== 'bom' ? COR_DA_SITUACAO[pior] : resumo.completo ? COR_DA_SITUACAO.bom : '#38bdf8';
@@ -200,6 +202,7 @@ function PassoInspecao({ dados, mudar, erro, cobrar }) {
           placeholder="Algo que não está na lista? Escreva aqui (ex.: barulho na suspensão, luz acesa no painel, arranhão novo…)"
           onChange={evento => mudar({ outros: evento.target.value })}
         />
+        <CampoFotos fotos={dados.fotos ?? []} unidadeId={unidade.id} aoMudar={mudarFotos} />
       </div>
     </div>
   );
@@ -323,6 +326,13 @@ function PassoRevisao({ unidade, motoristaNome, dados, erros }) {
             <p className="detalhe__outros">{dados.outros.trim()}</p>
           </>
         ) : null}
+
+        {dados.fotos?.length ? (
+          <>
+            <h3 className="detalhe__titulo">Fotos</h3>
+            <GaleriaFotos fotos={dados.fotos} />
+          </>
+        ) : null}
       </div>
     </div>
   );
@@ -357,6 +367,7 @@ export default function Checklist({ unidade, motorista, formularioId, passo, aoM
   }, [dados, unidade, formularioId, enviando]);
 
   const mudar = parte => setDados(atual => ({ ...atual, ...parte }));
+  const mudarFotos = atualizar => setDados(atual => ({ ...atual, fotos: atualizar(atual.fotos ?? []) }));
 
   const ultimo = useMemo(() => ultimoKm(registros, unidade.id), [registros, unidade.id]);
   const saida = paraKm(dados.kmSaida);
@@ -387,7 +398,7 @@ export default function Checklist({ unidade, motorista, formularioId, passo, aoM
     validacao.erros
   ];
 
-  const enviar = () => {
+  const enviar = async () => {
     if (enviando) return;
     setEnviando(true);
     const registro = criarRegistro({
@@ -397,8 +408,16 @@ export default function Checklist({ unidade, motorista, formularioId, passo, aoM
       kmSaida: saida,
       kmVolta: volta,
       itens: dados.itens,
-      outros: dados.outros
+      outros: dados.outros,
+      fotos: dados.fotos
     });
+    // As fotos entram na fila de envio junto com o checklist.
+    await cofreDeFotos
+      .vincular(
+        registro.fotos.map(foto => foto.id),
+        registro.id
+      )
+      .catch(() => {});
     const salvo = banco.gravar(registro);
     apagarRascunho(unidade);
     navigator.vibrate?.([40, 60, 40]);
@@ -481,7 +500,14 @@ export default function Checklist({ unidade, motorista, formularioId, passo, aoM
                 ultimo={ultimo}
               />
             ) : passo === 1 ? (
-              <PassoInspecao dados={dados} mudar={mudar} erro={mostrar(1).itens} cobrar={Boolean(tentou[1])} />
+              <PassoInspecao
+                unidade={unidade}
+                dados={dados}
+                mudar={mudar}
+                mudarFotos={mudarFotos}
+                erro={mostrar(1).itens}
+                cobrar={Boolean(tentou[1])}
+              />
             ) : (
               <PassoRevisao unidade={unidade} motoristaNome={nome} dados={dados} erros={mostrar(2)} />
             )}

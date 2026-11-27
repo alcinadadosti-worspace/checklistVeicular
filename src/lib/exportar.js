@@ -26,7 +26,8 @@ export function gerarCsv(registros) {
     'Hora do retorno',
     'Situação',
     ...ITENS.map(item => item.nome),
-    'Outros'
+    'Outros',
+    'Fotos'
   ];
   const linhas = registros.map(registro => [
     data(registro.preenchidoEm),
@@ -41,7 +42,8 @@ export function gerarCsv(registros) {
     registro.retornoEm ? hora(registro.retornoEm) : '',
     emRota(registro) ? 'Em rota' : 'Concluído',
     ...ITENS.map(item => situacaoPorId(registro.itens?.[item.id])?.nome || ''),
-    registro.outros || ''
+    registro.outros || '',
+    registro.fotos?.length || ''
   ]);
   return [cabecalho, ...linhas].map(linha => linha.map(celula).join(';')).join('\r\n');
 }

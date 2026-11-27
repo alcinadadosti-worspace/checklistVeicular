@@ -1,6 +1,7 @@
 // Teste de navegador CONTRA O BANCO REAL (produção): dois "aparelhos" ao mesmo tempo —
 //   A = celular do motorista (Penedo)      B = computador da administração.
-// Confere: envio e retorno chegam ao outro aparelho, fila offline, exclusão pela administração.
+// Confere: envio (com foto) e retorno chegam ao outro aparelho, fila offline, exclusão pela
+// administração (que também tira a foto do banco).
 //
 // SEGURANÇA: só cria e mexe em registros com motorista "TESTE AUTOMATICO" e exclui todos no final,
 // mesmo se o teste falhar (como o botão "Excluir" do app: ficam no banco marcados como excluídos e
@@ -56,6 +57,13 @@ const registrosDeTeste = async () => {
   return (await resposta.json()).map(linha => linha.document).filter(Boolean);
 };
 const visiveis = documentos => documentos.filter(documento => !documento.fields?.excluido?.booleanValue);
+const idsDasFotos = documentos =>
+  documentos.flatMap(documento =>
+    (documento.fields?.fotos?.arrayValue?.values || [])
+      .map(valor => valor.mapValue?.fields?.id?.stringValue)
+      .filter(Boolean)
+  );
+const fotoExiste = async id => (await fetch(`${RAIZ}${DOCUMENTOS}/fotos/${id}`)).status === 200;
 // Exclui do mesmo jeito que o botão "Excluir" do app: marca `excluido`, com `atualizadoEm` novo e o
 // carimbo do servidor em `servidorEm`, para que todo aparelho que chegou a baixar o registro de teste
 // (a administração aberta durante o teste, por exemplo) também o esconda na próxima sincronização.
@@ -149,7 +157,7 @@ const limparBanco = async () => {
     await pagina.keyboard.press('Escape');
     await pagina.waitForTimeout(2500);
   };
-  const preencher = async (pagina, km) => {
+  const preencher = async (pagina, km, { comFoto = false } = {}) => {
     await pagina.click('.inicio__acoes .botao');
     await pagina.waitForSelector('.tela--checklist');
     await pagina.waitForSelector('.campo-km');
@@ -157,6 +165,26 @@ const limparBanco = async () => {
     await pagina.click('.assistente__rodape .botao--g');
     await pagina.waitForSelector('.itens');
     for (const item of await pagina.locator('.item').all()) await item.locator('.opcao[data-tipo="bom"]').click();
+    if (comFoto) {
+      const jpeg = await pagina.evaluate(() => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 1600;
+        canvas.height = 1200;
+        const g = canvas.getContext('2d');
+        g.fillStyle = '#1e3a8a';
+        g.fillRect(0, 0, 1600, 1200);
+        g.fillStyle = '#fff';
+        g.font = 'bold 140px sans-serif';
+        g.fillText('TESTE AUTOMATICO', 80, 640);
+        return canvas.toDataURL('image/jpeg', 0.9).split(',')[1];
+      });
+      await pagina.setInputFiles('.campo-fotos input[type="file"]', {
+        name: 'teste.jpg',
+        mimeType: 'image/jpeg',
+        buffer: Buffer.from(jpeg, 'base64')
+      });
+      await pagina.waitForSelector('.campo-fotos .foto img', { timeout: 15000 });
+    }
     await pagina.click('.assistente__rodape .botao--g');
     await pagina.waitForSelector('.passo--revisao');
     await pagina.click('.assistente__rodape .botao--g');
@@ -179,19 +207,30 @@ const limparBanco = async () => {
     await A.waitForSelector('.tela--inicio', { timeout: 20000 });
     await esperarSincronizado(A, 'A (motorista) ao abrir');
 
-    console.log('2) Motorista envia um checklist de saída');
-    await preencher(A, 77000);
+    console.log('2) Motorista envia um checklist de saída, com uma foto');
+    await preencher(A, 77000, { comFoto: true });
     await esperarSincronizado(A, 'A depois de enviar');
     await A.screenshot({ path: path.join(SAIDA, 'banco-real-A-sucesso.png') });
 
-    console.log('3) Administração, em outro aparelho, vê o checklist');
+    console.log('3) Administração, em outro aparelho, vê o checklist e a foto');
     await entrar(B, COD_ADMIN);
     await B.waitForSelector('.tela--admin', { timeout: 20000 });
     await esperarSincronizado(B, 'B (administração) ao abrir');
     await B.waitForTimeout(1500);
     conferir('B vê o checklist do motorista', (await linhaB.count()) === 1);
     conferir('B mostra o veículo em rota', (await linhaB.first().locator('.selo--rota').count()) === 1);
+    conferir('B vê que há foto anexada', (await linhaB.first().locator('.selo--fotos').count()) === 1);
     await B.screenshot({ path: path.join(SAIDA, 'banco-real-B-admin.png') });
+    await linhaB.first().locator('button').click();
+    await B.waitForSelector('.folha');
+    const fotoChegou = await B.waitForSelector('.folha .fotos img', { timeout: 20000 }).then(
+      () => true,
+      () => false
+    );
+    conferir('B baixa a foto do banco e mostra na ficha', fotoChegou);
+    await B.screenshot({ path: path.join(SAIDA, 'banco-real-B-foto.png') });
+    await B.keyboard.press('Escape');
+    await B.waitForTimeout(500);
 
     console.log('4) Motorista registra o retorno; a administração recebe');
     await A.click('.sucesso .botao--g');
@@ -234,6 +273,14 @@ const limparBanco = async () => {
     }
     await esperarSincronizado(B, 'B depois de excluir');
     conferir('B não lista mais os registros de teste', (await linhaB.count()) === 0);
+    const fotosDoTeste = idsDasFotos(await registrosDeTeste());
+    const fotosQueFicaram = [];
+    for (const id of fotosDoTeste) if (await fotoExiste(id)) fotosQueFicaram.push(id);
+    conferir(
+      'a exclusão tirou a foto do banco',
+      fotosDoTeste.length === 1 && fotosQueFicaram.length === 0,
+      `${fotosDoTeste.length} foto(s) de teste, ${fotosQueFicaram.length} ainda no banco`
+    );
     await A.click('.sucesso .botao--g');
     await A.waitForSelector('.tela--inicio');
     await A.waitForTimeout(600);
@@ -253,12 +300,22 @@ const limparBanco = async () => {
     await browser.close();
     try {
       const excluidos = await limparBanco();
-      const restantes = visiveis(await registrosDeTeste()).length;
+      const documentos = await registrosDeTeste();
+      const restantes = visiveis(documentos).length;
       conferir(
         'nenhum registro de teste visível no banco',
         restantes === 0,
         `${excluidos} excluído(s) na limpeza, ${restantes} ainda visível(is)`
       );
+      // Fotos de teste que sobraram (teste interrompido): o checklist já está excluído, então as
+      // regras deixam apagar.
+      let sobras = 0;
+      for (const id of idsDasFotos(documentos)) {
+        if (!(await fotoExiste(id))) continue;
+        await fetch(`${RAIZ}${DOCUMENTOS}/fotos/${id}`, { method: 'DELETE' });
+        if (await fotoExiste(id)) sobras += 1;
+      }
+      conferir('nenhuma foto de teste no banco', sobras === 0, sobras ? `${sobras} não saíram` : '');
     } catch (erro) {
       conferir('nenhum registro de teste visível no banco', false, erro.message);
     }

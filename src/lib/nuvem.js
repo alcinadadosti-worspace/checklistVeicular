@@ -1,11 +1,12 @@
 // Nuvem: Firebase · Cloud Firestore, acessado pela API REST oficial (sem biblioteca extra).
 //
-// Cada checklist é um documento da coleção `checklists`, com o mesmo `id` do app.
+// Cada checklist é um documento da coleção `checklists`, com o mesmo `id` do app. As fotos
+// anexadas ficam na coleção `fotos` (um documento por foto, baixado só quando alguém abre a ficha).
 // Ao gravar, o próprio servidor carimba o campo `servidorEm` (hora do servidor); é por
 // ele que cada aparelho pergunta "o que mudou desde a última vez?", sem depender do
 // relógio dos celulares.
 
-import { COLECAO, FIREBASE_PROJECT_ID } from '../config/firebase.js';
+import { COLECAO, COLECAO_FOTOS, FIREBASE_PROJECT_ID } from '../config/firebase.js';
 
 const TEMPO_LIMITE_MS = 15000;
 const PAGINA = 300;
@@ -49,6 +50,7 @@ export const decodificar = valor => {
   if ('doubleValue' in valor) return Number(valor.doubleValue);
   if ('stringValue' in valor) return valor.stringValue;
   if ('timestampValue' in valor) return valor.timestampValue;
+  if ('bytesValue' in valor) return valor.bytesValue; // base64
   if ('arrayValue' in valor) return (valor.arrayValue.values || []).map(decodificar);
   if ('mapValue' in valor) return decodificarCampos(valor.mapValue.fields);
   return null;
@@ -56,6 +58,22 @@ export const decodificar = valor => {
 
 export const decodificarCampos = (campos = {}) =>
   Object.fromEntries(Object.entries(campos).map(([chave, valor]) => [chave, decodificar(valor)]));
+
+/* --- bytes <-> base64 (o Firestore recebe e devolve bytes em base64) --- */
+
+export const paraBase64 = bytes => {
+  const vetor = new Uint8Array(bytes);
+  let binario = '';
+  for (let i = 0; i < vetor.length; i += 0x8000) binario += String.fromCharCode(...vetor.subarray(i, i + 0x8000));
+  return btoa(binario);
+};
+
+export const deBase64 = texto => {
+  const binario = atob(texto);
+  const vetor = new Uint8Array(binario.length);
+  for (let i = 0; i < binario.length; i++) vetor[i] = binario.charCodeAt(i);
+  return vetor.buffer;
+};
 
 /** Campos que existem só na nuvem e não fazem parte do registro do app. */
 const SO_DA_NUVEM = ['servidorEm'];
@@ -71,6 +89,7 @@ const paraDocumento = registro => {
 export function criarNuvem({
   projeto = FIREBASE_PROJECT_ID,
   colecao = COLECAO,
+  colecaoFotos = COLECAO_FOTOS,
   servidor = 'https://firestore.googleapis.com',
   requisitar = (...argumentos) => globalThis.fetch(...argumentos)
 } = {}) {
@@ -193,6 +212,59 @@ export function criarNuvem({
     /** Remove de vez um documento (as regras só permitem para registros já marcados como excluídos). */
     async apagar(id) {
       await chamar('DELETE', `${raiz}/${colecao}/${id}`);
+    },
+
+    /** Envia uma foto do aparelho (documento próprio na coleção de fotos). */
+    async enviarFoto(foto) {
+      await chamar('POST', `${raiz}:commit`, {
+        writes: [
+          {
+            update: {
+              name: `${banco}/${colecaoFotos}/${foto.id}`,
+              fields: {
+                ...codificarCampos({
+                  id: foto.id,
+                  registroId: foto.registroId,
+                  unidade: foto.unidade || '',
+                  tipo: foto.tipo || 'image/jpeg',
+                  largura: Math.round(foto.largura || 0),
+                  altura: Math.round(foto.altura || 0),
+                  criadoEm: Math.round(foto.criadoEm || 0)
+                }),
+                dados: { bytesValue: paraBase64(foto.bytes) }
+              }
+            }
+          }
+        ]
+      });
+    },
+
+    /** Baixa uma foto. Devolve null se ela ainda não chegou à nuvem (ou foi apagada). */
+    async buscarFoto(id) {
+      let documento;
+      try {
+        documento = await chamar('GET', `${raiz}/${colecaoFotos}/${encodeURIComponent(id)}`);
+      } catch (erro) {
+        if (erro?.status === 404) return null;
+        throw erro;
+      }
+      const campos = documento?.fields || {};
+      if (!campos.dados?.bytesValue) return null;
+      const dados = decodificarCampos(campos);
+      return {
+        id,
+        registroId: dados.registroId ?? null,
+        unidade: dados.unidade ?? '',
+        tipo: dados.tipo || 'image/jpeg',
+        largura: dados.largura || 0,
+        altura: dados.altura || 0,
+        bytes: deBase64(campos.dados.bytesValue)
+      };
+    },
+
+    /** Apaga a foto de um checklist excluído (as regras só permitem nesse caso). */
+    async apagarFoto(id) {
+      await chamar('DELETE', `${raiz}/${colecaoFotos}/${encodeURIComponent(id)}`);
     }
   };
 }

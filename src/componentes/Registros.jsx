@@ -151,6 +151,15 @@ export function LinhaRegistro({ registro, aoAbrir, comUnidade = false, pendente 
               OK
             </span>
           )}
+          {registro.fotos?.length ? (
+            <span
+              className="selo selo--fotos"
+              title={registro.fotos.length === 1 ? '1 foto anexada' : `${registro.fotos.length} fotos anexadas`}
+            >
+              <Icone nome="camera" tamanho={13} />
+              {registro.fotos.length}
+            </span>
+          ) : null}
           {pendente ? (
             <span className="selo selo--pendente" title="Aguardando envio para a nuvem">
               <Icone nome="nuvem" tamanho={13} />

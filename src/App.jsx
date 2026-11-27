@@ -4,6 +4,7 @@ import Protecao from './componentes/Protecao.jsx';
 import { unidadePorId } from './config/frota.js';
 import { comMotorista, encerrarSessao, gravarSessao, lembrarMotorista, lerSessao } from './lib/acesso.js';
 import { banco } from './lib/banco.js';
+import { cofreDeFotos } from './lib/fotosDoChecklist.js';
 import { apagarRascunho, gravarRascunho, lerRascunho, novoRascunho } from './lib/rascunho.js';
 import { sincronizacao } from './lib/sincronizacao.js';
 import Login from './telas/Login.jsx';
@@ -110,7 +111,12 @@ export default function App() {
 
   useEffect(() => {
     sincronizacao.iniciar();
-    return () => sincronizacao.parar();
+    // fotos de rascunhos abandonados e fotos antigas já enviadas saem do aparelho
+    const arrumacao = setTimeout(() => cofreDeFotos.arrumar().catch(() => {}), 8000);
+    return () => {
+      clearTimeout(arrumacao);
+      sincronizacao.parar();
+    };
   }, []);
 
   // Enquanto a pessoa digita o código, já adianta o download da próxima tela.

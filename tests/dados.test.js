@@ -17,6 +17,7 @@ import {
 import { banco, gravarPreferencia } from '../src/lib/banco.js';
 import { gerarCsv } from '../src/lib/exportar.js';
 import { paraKm } from '../src/lib/formato.js';
+import { FOTOS_POR_CHECKLIST, criarCofreDeFotos, resumoDasFotos } from '../src/lib/fotosDoChecklist.js';
 import { hashDoCodigo, sha256 } from '../src/lib/hash.js';
 import { codificarCampos, criarNuvem, decodificarCampos } from '../src/lib/nuvem.js';
 import { apagarRascunho, gravarRascunho, lerRascunho, novoRascunho } from '../src/lib/rascunho.js';
@@ -521,6 +522,133 @@ describe('exportação', () => {
     assert.ok(cabecalho.startsWith('Data;Hora;Unidade;Veículo;Motorista;KM saída;KM volta;KM rodados'));
     assert.ok(linha.includes(';Penedo;Toyota Hilux Cabine Simples;Rogerio;45210;45392;182;'));
     assert.ok(linha.includes(';Concluído;Bom;Bom;Bom;Bom;Bom;Bom;Bom;'));
-    assert.ok(linha.endsWith(`"'=SOMA(A1) ""teste""; ok"`));
+    assert.ok(linha.endsWith(`"'=SOMA(A1) ""teste""; ok";`), 'sem fotos, a última coluna fica vazia');
+    assert.ok(cabecalho.endsWith(';Outros;Fotos'));
+    const comFotos = novoRegistro({ fotos: [{ id: 'ft_a' }, { id: 'ft_b' }] });
+    assert.ok(gerarCsv([comFotos]).split('\r\n')[1].endsWith(';2'), 'conta as fotos anexadas');
+  });
+});
+
+describe('fotos do checklist', () => {
+  const bytes = (...valores) => new Uint8Array(valores).buffer;
+  const fotoDe = (id, extra = {}) => ({
+    id,
+    bytes: bytes(255, 216, 255, 0, 1, 2, 3),
+    tipo: 'image/jpeg',
+    largura: 1280,
+    altura: 960,
+    unidade: 'penedo',
+    registroId: null,
+    enviada: false,
+    criadoEm: Date.now(),
+    ...extra
+  });
+
+  it('o registro guarda só o id e o tamanho das fotos, até o limite', () => {
+    const fotos = Array.from({ length: 6 }, (_, i) => ({ id: `ft_${i}`, largura: 800, altura: 600, bytes: 'x' }));
+    const registro = novoRegistro({ fotos });
+    assert.equal(registro.fotos.length, FOTOS_POR_CHECKLIST);
+    assert.deepEqual(registro.fotos[0], { id: 'ft_0', largura: 800, altura: 600 });
+    assert.deepEqual(novoRegistro().fotos, [], 'sem fotos: lista vazia');
+    assert.deepEqual(resumoDasFotos([null, { semId: 1 }, { id: 'ft_x' }]), [{ id: 'ft_x', largura: 0, altura: 0 }]);
+  });
+
+  it('no aparelho: foto do rascunho só entra na fila quando o checklist é enviado', async () => {
+    const cofre = criarCofreDeFotos({ indexedDB: null });
+    await cofre.guardar(fotoDe('ft_1'));
+    await cofre.guardar(fotoDe('ft_2'));
+    assert.deepEqual(await cofre.pendentes(), [], 'rascunho não é enviado');
+    await cofre.vincular(['ft_1'], 'ck_1');
+    assert.deepEqual(
+      (await cofre.pendentes()).map(foto => [foto.id, foto.registroId]),
+      [['ft_1', 'ck_1']]
+    );
+    await cofre.marcarEnviada('ft_1');
+    assert.deepEqual(await cofre.pendentes(), []);
+    assert.equal((await cofre.ler('ft_1')).enviada, true, 'continua no aparelho para mostrar');
+  });
+
+  it('arrumação: some foto de rascunho abandonado e foto antiga já enviada', async () => {
+    const cofre = criarCofreDeFotos({ indexedDB: null });
+    const agora = Date.parse('2026-11-27T12:00:00Z');
+    const dia = 24 * 60 * 60 * 1000;
+    await cofre.guardar(fotoDe('rascunho-velho', { criadoEm: agora - 2 * dia }));
+    await cofre.guardar(fotoDe('rascunho-novo', { criadoEm: agora - 1000 }));
+    await cofre.guardar(fotoDe('enviada-velha', { registroId: 'ck', enviada: true, criadoEm: agora - 61 * dia }));
+    await cofre.guardar(fotoDe('pendente-velha', { registroId: 'ck', enviada: false, criadoEm: agora - 90 * dia }));
+    await cofre.arrumar(agora);
+    assert.equal(await cofre.ler('rascunho-velho'), null);
+    assert.equal(await cofre.ler('enviada-velha'), null);
+    assert.ok(await cofre.ler('rascunho-novo'));
+    assert.ok(await cofre.ler('pendente-velha'), 'foto que não subiu nunca é apagada');
+  });
+
+  it('nuvem: envia e baixa a foto (bytes em base64, documento próprio)', async () => {
+    const falso = criarFirestoreFalso();
+    const nuvem = criarNuvem({ projeto: 'projeto-teste', requisitar: falso.requisitar });
+    const grande = new Uint8Array(200000).map((_, i) => (i * 31) % 256); // maior que um pedaço do base64
+    await nuvem.enviarFoto(fotoDe('ft_1', { registroId: 'ck_1', bytes: grande.buffer }));
+    assert.equal(falso.fotos.get('ft_1').dados.bytesValue.length, Math.ceil(200000 / 3) * 4);
+    assert.equal(falso.documentos.size, 0, 'a foto não vai para a coleção de checklists');
+
+    const baixada = await nuvem.buscarFoto('ft_1');
+    assert.equal(baixada.registroId, 'ck_1');
+    assert.equal(baixada.tipo, 'image/jpeg');
+    assert.deepEqual([baixada.largura, baixada.altura], [1280, 960]);
+    assert.deepEqual(new Uint8Array(baixada.bytes), grande);
+    assert.equal(await nuvem.buscarFoto('ft_nao_existe'), null, 'ainda não chegou: null, sem erro');
+  });
+
+  it('sincronização: envia o checklist e depois as fotos dele', async () => {
+    banco.limpar();
+    const falso = criarFirestoreFalso();
+    const nuvem = criarNuvem({ projeto: 'projeto-teste', requisitar: falso.requisitar });
+    const fotos = criarCofreDeFotos({ indexedDB: null });
+    const ambiente = { navigator: { onLine: true }, setTimeout: () => 0, clearTimeout: () => {} };
+    const sync = criarSincronizacao({ nuvem, fotos, ambiente });
+
+    await fotos.guardar(fotoDe('ft_1'));
+    const registro = novoRegistro({ fotos: [{ id: 'ft_1', largura: 1280, altura: 960 }] });
+    await fotos.vincular(['ft_1'], registro.id);
+    banco.gravar(registro);
+    await sync.agora();
+
+    assert.equal(sync.obter().fase, 'em-dia');
+    assert.deepEqual(falso.registro(registro.id).fotos, [{ id: 'ft_1', largura: 1280, altura: 960 }]);
+    assert.ok(falso.fotos.has('ft_1'));
+    const ordem = falso.estado.chamadas.filter(c => c.method === 'POST' && c.url.endsWith(':commit'));
+    assert.ok(ordem[0].body.writes[0].update.name.includes('/checklists/'), 'o texto do checklist sobe primeiro');
+    assert.deepEqual(await fotos.pendentes(), []);
+  });
+
+  it('foto recusada pela nuvem não trava o checklist; checklist excluído leva as fotos', async () => {
+    banco.limpar();
+    const falso = criarFirestoreFalso();
+    const nuvem = criarNuvem({ projeto: 'projeto-teste', requisitar: falso.requisitar });
+    const fotos = criarCofreDeFotos({ indexedDB: null });
+    const ambiente = { navigator: { onLine: true }, setTimeout: () => 0, clearTimeout: () => {} };
+    const sync = criarSincronizacao({ nuvem, fotos, ambiente });
+
+    falso.estado.recusarFoto = () => true; // como se as regras novas ainda não estivessem publicadas
+    await fotos.guardar(fotoDe('ft_1'));
+    const registro = novoRegistro({ fotos: [{ id: 'ft_1' }] });
+    await fotos.vincular(['ft_1'], registro.id);
+    banco.gravar(registro);
+    await sync.agora();
+    assert.ok(falso.registro(registro.id), 'o checklist chegou');
+    assert.equal(sync.obter().fase, 'erro');
+    assert.equal(sync.obter().recusados, 1);
+    assert.equal((await fotos.pendentes()).length, 1, 'a foto continua na fila');
+
+    falso.estado.recusarFoto = null; // regras publicadas
+    await sync.agora();
+    assert.equal(sync.obter().fase, 'em-dia');
+    assert.ok(falso.fotos.has('ft_1'));
+
+    banco.excluir(registro.id);
+    await sync.agora();
+    assert.equal(falso.registro(registro.id).excluido, true);
+    assert.equal(falso.fotos.has('ft_1'), false, 'a foto saiu da nuvem');
+    assert.equal(await fotos.ler('ft_1'), null, 'e do aparelho');
   });
 });

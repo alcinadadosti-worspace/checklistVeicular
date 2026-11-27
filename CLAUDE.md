@@ -48,9 +48,10 @@ Quando o usuário escrever **"vamos continuar"**:
 - **Versão com Marcio e Pedro no ar** desde 27/11 (~10h), por Manual Deploy do usuário. No site
   publicado passaram em 27/11: `fluxo-motorista.js` nas duas unidades e `offline.js` (os dois
   bloqueiam o banco).
-- Testes: 32 de dados (`npm test`) e 6 de navegador em `tests/e2e` (todos passando na prévia
-  local em 27/11, já com a escolha por crachá).
-- **Pendente:** o usuário fazer **Manual Deploy** no Render para a escolha por crachá entrar no ar.
+- Testes: 38 de dados (`npm test`) e 6 de navegador em `tests/e2e` (todos passando na prévia
+  local em 27/11, com a escolha por crachá e as fotos; o de produção ainda não rodou com foto).
+- **Pendente com o usuário:** (1) publicar o `firestore.rules` novo no console do Firebase;
+  (2) **Manual Deploy** no Render (crachás + fotos); (3) Deploy Hook, se quiser.
 
 **Publicação no Render — sem Auto-Deploy:** o site foi criado pela opção "Public Git Repository"
 (endereço colado), e nessa opção o Render **não publica sozinho** a cada push (não há webhook do
@@ -74,8 +75,15 @@ aparecem no app. A limpeza de `dois-aparelhos-banco-real.js` faz o mesmo (rodada
 vez, porque um documento apagado nunca chega aos aparelhos que já tinham baixado o registro, que
 ficaria preso neles.
 
-**Em andamento (27/11):** **fotos no campo "Outros"** da inspeção, para a Ludmylla ver na ficha
-(pedido do usuário).
+**Fotos em "Outros" (27/11, pedido do usuário):** até 4 por checklist, reduzidas no aparelho
+(`src/lib/fotosDoChecklist.js`: IndexedDB `clv-fotos`, JPEG ≤ 1280 px e ≤ 600 KB) e enviadas pela
+sincronização depois do checklist para a coleção **`fotos`** (um documento por foto, bytes em
+`dados`); o registro guarda só `fotos: [{ id, largura, altura }]`. A ficha baixa a foto ao abrir
+(`src/componentes/Fotos.jsx`). Excluir o checklist apaga as fotos dele (as regras só deixam
+apagar foto de checklist já excluído). **Depende de o usuário publicar o `firestore.rules` novo**
+no console — sem isso a foto é recusada (o checklist sobe normalmente; o indicador mostra erro).
+Depois de publicar as regras e fazer o deploy: rodar `dois-aparelhos-banco-real.js` no site (agora
+com foto: confere que a administração vê a foto e que a exclusão a tira do banco).
 
 **Perguntar ao usuário:** KM de volta — ele sugeriu usar o KM de saída do dia seguinte. Proposto:
 manter "Registrar retorno" (mostra o carro na base e revela uso sem checklist, pela diferença entre
@@ -112,6 +120,8 @@ painel do Render (opcional).
   servidor; `documents:runQuery` incremental por `servidorEm` (relê 1 min de margem).
 - `src/lib/sincronizacao.js` — ciclo baixar → enviar, com novas tentativas e modo offline.
 - `src/lib/cracha.js` — desenha frente, verso e cordão do crachá (canvas) para o Lanyard.
+- `src/lib/fotosDoChecklist.js` — fotos anexadas: cofre no aparelho (IndexedDB), redução, endereço
+  para mostrar (do aparelho ou baixada da nuvem). `src/componentes/Fotos.jsx` — campo, galeria e visor.
 - `src/telas/` — Login, Motorista ("Quem está acessando?"), Inicio, Checklist, Retorno, Sucesso, Admin. `src/App.jsx` guarda as rotas
   no `history` do navegador (o botão voltar do celular funciona).
 - `src/reactbits/` — cópias do registro oficial do React Bits. **Não refatorar.** Única exceção:

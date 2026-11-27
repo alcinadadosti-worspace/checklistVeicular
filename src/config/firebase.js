@@ -15,3 +15,4 @@ const ID_PADRAO = 'checklistveicular-6a274';
 
 export const FIREBASE_PROJECT_ID = (import.meta.env?.VITE_FIREBASE_PROJECT_ID || ID_PADRAO).trim();
 export const COLECAO = 'checklists';
+export const COLECAO_FOTOS = 'fotos'; // fotos anexadas aos checklists (uma por documento)

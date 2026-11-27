@@ -18,7 +18,8 @@ automaticamente. A administração acompanha as duas unidades num painel.
 3. Toca em **Iniciar checklist**, que tem 3 passos:
    - **Veículo** — informa o KM de saída. Se já voltou, liga "Já voltei" e informa também o KM de volta.
    - **Inspeção** — marca cada item como _Bom_, _Ruim_ ou _Faltante / Não funciona_ e, se quiser,
-     escreve algo em _Outros_.
+     escreve algo em _Outros_. Também pode anexar **até 4 fotos** (câmera ou galeria): o app reduz
+     cada foto antes de guardar, e a administração vê na ficha do checklist.
    - **Revisão** — confere e envia. A data e a hora são gravadas pelo app nesse momento.
 4. Se saiu sem informar o KM de volta, o veículo fica **em rota**; ao retornar, abre o app e toca em
    **Registrar retorno** (a data e a hora do retorno também são automáticas).
@@ -72,6 +73,10 @@ opcional — para usá-los, copie-os no painel do site, em **Headers**.
 - **Atenção:** rodar o app no computador (`npm run dev`) também grava nesse banco. Se for testar,
   use um nome de motorista de teste e exclua o registro depois pelo painel da administração.
 - Para ver os dados direto na fonte: console do Firebase → Firestore Database → coleção `checklists`.
+  As fotos ficam na coleção `fotos` (um documento por foto, com até ~600 KB); o checklist guarda só
+  a lista delas. Quando a administração exclui um checklist, as fotos dele saem do banco.
+- **Mudou o `firestore.rules`?** Publique de novo: console do Firebase → Firestore Database →
+  **Regras** → apague o conteúdo, cole o do arquivo e clique em **Publicar**.
 
 ### Montar o banco do zero (outro projeto)
 
@@ -137,6 +142,8 @@ iluminação própria do app e a opção de inclinar a câmera em vez do modelo.
   após cada gravação e de tempos em tempos (a cada 30 s com o painel da administração aberto).
 - **Offline:** um _service worker_ (`scripts/sw-modelo.js`, gerado no build) guarda os arquivos do app.
 - **Rascunho:** o que o motorista já preencheu não se perde se a página recarregar.
+- **Fotos:** ficam no aparelho (IndexedDB, já reduzidas para no máximo 1280 px) e sobem para a
+  coleção `fotos` depois do checklist; quem abre a ficha baixa a foto só nessa hora.
 
 ## Limites que vale conhecer
 
@@ -155,7 +162,7 @@ scripts/             preparar fotos, gerar modelos 3D, gerar hash de código, mo
 src/config/          unidades, motoristas, itens e ID do Firebase
 src/lib/             regras do checklist, banco local, nuvem, sincronização, desenho do crachá
 src/componentes/     peças da interface
-src/telas/           login, início, checklist, retorno, sucesso e administração
+src/telas/           login, quem está acessando, início, checklist, retorno, sucesso e administração
 src/reactbits/       componentes do React Bits
 tests/               testes da parte de dados; tests/e2e (navegador) e tests/integracao (banco real)
 ```

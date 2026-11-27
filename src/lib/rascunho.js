@@ -18,7 +18,8 @@ export function novoRascunho() {
       kmVolta: '',
       informarVolta: false,
       itens: {},
-      outros: ''
+      outros: '',
+      fotos: [] // [{ id, largura, altura }]; a imagem fica no cofre de fotos do aparelho
     }
   };
 }
