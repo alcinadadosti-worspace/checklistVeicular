@@ -88,11 +88,13 @@ ficaram no banco com `excluido: true`. O usuário achou que o banco "não estava
 (provavelmente porque o painel está vazio: todos os registros estão excluídos); o app ainda
 **não está em uso real** (dito por ele em 27/11).
 
-**Banco de produção:** os 2 checklists de teste do usuário (24/11) foram excluídos em 25/11 a pedido
-dele — ficam no banco com `excluido: true` (a marcação que avisa os outros aparelhos) e não
-aparecem no app. A limpeza de `dois-aparelhos-banco-real.js` faz o mesmo (rodada 4 vezes em 27/11;
-o banco tem 10 checklists, nenhum visível, e nenhuma foto): não apaga documento de vez, porque um documento apagado nunca chega aos aparelhos que já tinham baixado o registro, que
-ficaria preso neles.
+**Banco de produção — limpo em 27/11 (~15h20) a pedido do usuário:** os 10 checklists de teste já
+excluídos (2 do usuário de 24/11 e 8 "TESTE AUTOMATICO") foram **apagados de vez**; o teste manual do
+usuário (Rogerio, 56.787 km, 27/11 11h53) foi **excluído** como o app faz (`excluido: true`) e é o
+único documento que resta — nenhum visível, nenhuma foto. A limpeza de `dois-aparelhos-banco-real.js`
+só marca como excluído: não apaga documento de vez logo depois, porque um documento apagado nunca
+chega aos aparelhos que já tinham baixado o registro, que ficaria preso neles (apagar de vez só
+registros excluídos há tempo, depois de os aparelhos terem sincronizado).
 
 **Fotos em "Outros" (27/11, pedido do usuário):** até 4 por checklist, reduzidas no aparelho
 (`src/lib/fotosDoChecklist.js`: IndexedDB `clv-fotos`, JPEG ≤ 1280 px e ≤ 600 KB) e enviadas pela
