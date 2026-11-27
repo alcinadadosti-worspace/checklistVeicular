@@ -5,7 +5,8 @@
 // Não existem modelos oficiais e de uso livre da Hilux e da Saveiro, então os dois
 // são construídos aqui por código, a partir das medidas reais de cada carro
 // (comprimento, entre-eixos, altura, caçamba, rodas). São representações
-// estilizadas, não réplicas.
+// estilizadas, não réplicas. As duas picapes da frota rodam com baú fechado sobre a
+// caçamba (campo `bau` das fichas; sem ele, a caçamba fica aberta).
 //
 // Para usar um modelo profissional no lugar, basta salvar o arquivo como
 // public/models/hilux.glb ou public/models/saveiro.glb (formato .glb) — o app
@@ -74,6 +75,7 @@ const HILUX = {
   cabineTras: -0.4,
   afunilamento: 0.17,
   cacamba: { frente: -0.44, tras: -2.74, borda: 1.315, piso: 0.86 },
+  bau: { sobreTeto: 0.2 }, // baú fechado sobre a caçamba, 20 cm mais alto que a cabine
   parachoqueTraseiro: 'cromado',
   parachoqueDianteiro: 'pintado',
   paralamas: true,
@@ -105,6 +107,7 @@ const SAVEIRO = {
   cabineTras: -0.335,
   afunilamento: 0.2,
   cacamba: { frente: -0.345, tras: -2.25, borda: 1.085, piso: 0.56 },
+  bau: { sobreTeto: 0.2 },
   parachoqueTraseiro: 'preto',
   parachoqueDianteiro: 'preto',
   paralamas: false,
@@ -332,6 +335,15 @@ const criarMateriais = ficha => ({
     clearcoat: 1,
     clearcoatRoughness: 0.03,
     side: THREE.DoubleSide
+  }),
+  // Baú de fibra branco: um pouco menos brilhante que a pintura do carro.
+  bau: new THREE.MeshPhysicalMaterial({
+    name: 'bau',
+    color: '#f5f6f3',
+    metalness: 0.04,
+    roughness: 0.46,
+    clearcoat: 0.35,
+    clearcoatRoughness: 0.2
   }),
   plastico: new THREE.MeshStandardMaterial({ name: 'plastico', color: '#1a1c20', metalness: 0.05, roughness: 0.72 }),
   borracha: new THREE.MeshStandardMaterial({ name: 'borracha', color: '#0d0d0f', metalness: 0, roughness: 0.9 }),
@@ -813,6 +825,48 @@ const construirPicape = ficha => {
   m.add('plastico', caixa(0.1, 0.02, hw * 2 - 0.5, f.traseira + 0.075, yTraseiro + 0.08, 0, 0.006));
   m.add('placa', caixa(0.012, 0.11, 0.38, f.traseira - 0.004, yTraseiro, 0));
   m.add('placaFaixa', caixa(0.014, 0.026, 0.38, f.traseira - 0.005, yTraseiro + 0.042, 0));
+
+  /* --- baú fechado sobre a caçamba ----------------------------------------- */
+  if (f.bau) {
+    const base = c.borda + 0.012; // apoiado nas bordas da caçamba
+    const topo = f.teto + f.bau.sobreTeto;
+    const xFrente = c.frente - 0.015; // logo atrás da cabine
+    const xTras = c.tras - 0.01; // alinhado com a tampa traseira
+    const comprimento = xFrente - xTras;
+    const altura = topo - base;
+    const xMeio = (xFrente + xTras) / 2;
+    const yMeio = (base + topo) / 2;
+    const zBau = hw - 0.004; // metade da largura do baú
+
+    // Caixa (fibra branca) com cantos arredondados.
+    m.add('bau', caixa(comprimento, altura, zBau * 2, xMeio, yMeio, 0, 0.05));
+    // Vedação escura entre o baú e as bordas da caçamba.
+    m.add('plastico', caixa(comprimento - 0.02, 0.022, zBau * 2 + 0.006, xMeio, base + 0.004, 0, 0.006));
+    // Cantoneiras de alumínio: arestas de cima e colunas dos quatro cantos.
+    m.par('aco', caixa(comprimento - 0.04, 0.028, 0.028, xMeio, topo - 0.026, zBau - 0.01, 0.008));
+    for (const x of [xFrente - 0.018, xTras + 0.018]) {
+      m.par('aco', caixa(0.03, altura - 0.03, 0.03, x, yMeio, zBau - 0.012, 0.008));
+    }
+    // Frisos laterais (reforço horizontal) a meia altura.
+    m.par('aco', caixa(comprimento - 0.1, 0.018, 0.012, xMeio, base + altura * 0.42, zBau + 0.002, 0.004));
+
+    // Traseira: porta dupla com moldura, barras de trava, puxadores e dobradiças.
+    const xPorta = xTras - 0.004;
+    m.add('aco', caixa(0.03, 0.04, zBau * 2 - 0.02, xTras + 0.01, topo - 0.035, 0, 0.008));
+    m.add('aco', caixa(0.034, 0.05, zBau * 2 - 0.02, xTras + 0.012, base + 0.04, 0, 0.008));
+    m.add('plastico', caixa(0.008, altura - 0.16, 0.012, xPorta - 0.002, yMeio, 0)); // divisão das folhas
+    for (const z of [0.2, -0.2]) {
+      m.add('cromado', caixa(0.022, altura - 0.2, 0.022, xPorta - 0.012, yMeio, z, 0.008));
+      m.add('cromado', caixa(0.05, 0.03, 0.12, xPorta - 0.03, base + altura * 0.45, z - Math.sign(z) * 0.05, 0.01));
+    }
+    for (const fracao of [0.2, 0.5, 0.8]) {
+      m.par('aco', caixa(0.03, 0.06, 0.07, xPorta - 0.01, base + altura * fracao, zBau - 0.07, 0.008));
+    }
+    // Luzes delimitadoras nos cantos de cima e brake light central.
+    m.par('lanterna', caixa(0.02, 0.04, 0.09, xPorta - 0.006, topo - 0.09, zBau - 0.11, 0.008));
+    m.add('lanterna', caixa(0.02, 0.03, 0.34, xPorta - 0.006, topo - 0.1, 0, 0.008));
+    m.par('pisca', caixa(0.02, 0.04, 0.09, xFrente + 0.006, topo - 0.09, zBau - 0.11, 0.008));
+  }
 
   /* --- paralamas, soleira, para-barros ------------------------------------- */
   const aroArco = cx => {

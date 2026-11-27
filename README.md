@@ -133,7 +133,8 @@ Tudo fica em [`src/config/frota.js`](src/config/frota.js): unidades, veículos, 
 - **Unidades e motoristas** — as listas `UNIDADES` e `MOTORISTAS`. Uma unidade nova precisa de um
   código (hash) e de um modelo 3D; nas regras do banco não muda nada.
 - **Carros 3D** — os modelos de `public/models/` são gerados por código (`npm run modelos`) a partir
-  das medidas reais de cada carro. São representações estilizadas, não réplicas. Para usar um modelo
+  das medidas reais de cada carro, com o baú fechado sobre a caçamba que as duas picapes usam (campo
+  `bau` em `scripts/gerar-modelos.mjs`). São representações estilizadas, não réplicas. Para usar um modelo
   profissional, salve o arquivo `.glb` como `public/models/hilux.glb` ou `public/models/saveiro.glb`.
 
 ## Componentes do React Bits
