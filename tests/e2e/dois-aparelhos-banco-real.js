@@ -19,6 +19,7 @@ const TARGET_URL = process.env.TARGET_URL || 'http://localhost:4173';
 const SAIDA = process.env.SAIDA || path.join(os.tmpdir(), 'checklist-e2e');
 const PROJETO = process.env.FIREBASE_PROJECT_ID || 'checklistveicular-6a274';
 const NOME = 'TESTE AUTOMATICO';
+const INICIO = Date.now(); // registros desta execução (o banco guarda, excluídos, os de execuções anteriores)
 const CODIGOS = Object.fromEntries(
   (process.env.CODIGOS_TESTE || '')
     .split(',')
@@ -273,7 +274,9 @@ const limparBanco = async () => {
     }
     await esperarSincronizado(B, 'B depois de excluir');
     conferir('B não lista mais os registros de teste', (await linhaB.count()) === 0);
-    const fotosDoTeste = idsDasFotos(await registrosDeTeste());
+    const fotosDoTeste = idsDasFotos(
+      (await registrosDeTeste()).filter(documento => Number(documento.fields?.criadoEm?.integerValue) >= INICIO)
+    );
     const fotosQueFicaram = [];
     for (const id of fotosDoTeste) if (await fotoExiste(id)) fotosQueFicaram.push(id);
     conferir(

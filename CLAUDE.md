@@ -25,10 +25,10 @@ Quando o usuário escrever **"vamos continuar"**:
 4. Ao concluir uma etapa, atualize **Estado atual** (com a data) e faça commit + push — o usuário
    autorizou commit e push neste projeto. Adicione arquivos **pelo nome**, nunca `git add -A`.
 
-## Estado atual — 27/11/2026 (meio-dia)
+## Estado atual — 27/11/2026 (tarde)
 
-**Pronto** (últimos commits de funcionalidade, 27/11: crachás, fotos e volta pela saída seguinte —
-**ainda não publicados no site**, falta o Manual Deploy do usuário):
+**Pronto e no ar** (27/11: crachás, fotos e volta pela saída seguinte; Manual Deploy do usuário às
+11h39, `index-CM6jYYiP.js`):
 
 - Login por código → **"Quem está acessando?"** com os crachás dos motoristas da unidade (e "Outro
   motorista" com nome); a escolha fica na sessão (`sessao.motorista`) até sair, e "Trocar
@@ -58,9 +58,9 @@ Quando o usuário escrever **"vamos continuar"**:
 - Testes: 41 de dados (`npm test`) e 6 de navegador em `tests/e2e`, todos passando em 27/11 na
   prévia local; `dois-aparelhos-banco-real.js` (com foto) passou na prévia local contra o banco
   real, já com as regras novas.
-- **Pendente com o usuário:** (1) **Manual Deploy** no Render (crachás + fotos + volta pela saída
-  seguinte) — depois, conferir o `index-*.js` e rodar `fluxo-motorista.js` e
-  `dois-aparelhos-banco-real.js` com `TARGET_URL`; (2) Deploy Hook, se quiser.
+- **Testado no site publicado em 27/11 (~11h45):** `fluxo-motorista.js` (Penedo e Palmeira),
+  `offline.js`, `navegacao-voltar.js` e `dois-aparelhos-banco-real.js` com foto — tudo certo.
+- **Pendente com o usuário:** Deploy Hook (opcional) — sem ele, cada push precisa de Manual Deploy.
 
 **Publicação no Render — sem Auto-Deploy:** o site foi criado pela opção "Public Git Repository"
 (endereço colado), e nessa opção o Render **não publica sozinho** a cada push (não há webhook do
@@ -79,8 +79,8 @@ ficaram no banco com `excluido: true`. O usuário achou que o banco "não estava
 
 **Banco de produção:** os 2 checklists de teste do usuário (24/11) foram excluídos em 25/11 a pedido
 dele — ficam no banco com `excluido: true` (a marcação que avisa os outros aparelhos) e não
-aparecem no app. A limpeza de `dois-aparelhos-banco-real.js` faz o mesmo (rodada 2 vezes em 27/11;
-o banco tem 6 checklists, nenhum visível, e nenhuma foto): não apaga documento de vez, porque um documento apagado nunca chega aos aparelhos que já tinham baixado o registro, que
+aparecem no app. A limpeza de `dois-aparelhos-banco-real.js` faz o mesmo (rodada 4 vezes em 27/11;
+o banco tem 10 checklists, nenhum visível, e nenhuma foto): não apaga documento de vez, porque um documento apagado nunca chega aos aparelhos que já tinham baixado o registro, que
 ficaria preso neles.
 
 **Fotos em "Outros" (27/11, pedido do usuário):** até 4 por checklist, reduzidas no aparelho
