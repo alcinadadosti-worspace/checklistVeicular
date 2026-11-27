@@ -1,7 +1,7 @@
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, MotionConfig } from 'motion/react';
 import Protecao from './componentes/Protecao.jsx';
-import { unidadePorId } from './config/frota.js';
+import { UNIDADES, unidadePorId } from './config/frota.js';
 import { comMotorista, encerrarSessao, gravarSessao, lembrarMotorista, lerSessao } from './lib/acesso.js';
 import { banco } from './lib/banco.js';
 import { cofreDeFotos } from './lib/fotosDoChecklist.js';
@@ -112,7 +112,18 @@ export default function App() {
   useEffect(() => {
     sincronizacao.iniciar();
     // fotos de rascunhos abandonados e fotos antigas já enviadas saem do aparelho
-    const arrumacao = setTimeout(() => cofreDeFotos.arrumar().catch(() => {}), 8000);
+    const arrumacao = setTimeout(() => {
+      // As fotos dos rascunhos ainda abertos ficam, mesmo que o rascunho seja antigo.
+      const emUso = new Set(
+        UNIDADES.flatMap(unidadeDoRascunho => {
+          const rascunho = lerRascunho(unidadeDoRascunho);
+          if (!rascunho) return [];
+          const { fotos = [], manutencao = null } = rascunho.dados;
+          return [...fotos, ...(manutencao?.fotos ?? [])].map(foto => foto.id);
+        })
+      );
+      cofreDeFotos.arrumar(Date.now(), emUso).catch(() => {});
+    }, 8000);
     return () => {
       clearTimeout(arrumacao);
       sincronizacao.parar();
@@ -201,10 +212,14 @@ export default function App() {
   // Depois de enviar, as etapas do formulário saem do histórico do navegador: o botão
   // "voltar" na tela de sucesso leva ao início, não a um formulário já enviado.
   const concluirChecklist = useCallback(
-    (registroId, passoAtual) => {
+    registroId => {
       formularioAtivo.current = null;
       if (unidade) apagarRascunho(unidade);
-      voltarEtapas(Math.max(0, Number(passoAtual) || 0), { tela: 'sucesso', registro: registroId });
+      // Quantas etapas do formulário há no histórico agora: o motorista pode ter tocado em
+      // "voltar" no celular enquanto o envio terminava.
+      const atual = window.history.state;
+      const etapas = atual?.tela === 'checklist' ? Math.max(0, Number(atual.passo) || 0) : 0;
+      voltarEtapas(etapas, { tela: 'sucesso', registro: registroId });
     },
     [unidade, voltarEtapas]
   );

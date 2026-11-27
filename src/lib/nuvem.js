@@ -97,9 +97,9 @@ export function criarNuvem({
   const banco = `projects/${projeto}/databases/(default)/documents`;
   const raiz = `${servidor}/v1/${banco}`;
 
-  const chamar = async (metodo, url, corpo) => {
+  const chamar = async (metodo, url, corpo, { tempoLimite = TEMPO_LIMITE_MS } = {}) => {
     const controle = new AbortController();
-    const relogio = setTimeout(() => controle.abort(), TEMPO_LIMITE_MS);
+    const relogio = setTimeout(() => controle.abort(), tempoLimite);
     let resposta;
     try {
       resposta = await requisitar(url, {
@@ -216,7 +216,10 @@ export function criarNuvem({
 
     /** Envia uma foto do aparelho (documento próprio na coleção de fotos). */
     async enviarFoto(foto) {
-      await chamar('POST', `${raiz}:commit`, {
+      const dados = paraBase64(foto.bytes);
+      // Foto é bem maior que um checklist: o prazo cresce com o tamanho (internet lenta de estrada).
+      const tempoLimite = 30000 + Math.round(dados.length / 8); // ~8 KB/s, mais 30 s
+      const corpo = {
         writes: [
           {
             update: {
@@ -231,12 +234,13 @@ export function criarNuvem({
                   altura: Math.round(foto.altura || 0),
                   criadoEm: Math.round(foto.criadoEm || 0)
                 }),
-                dados: { bytesValue: paraBase64(foto.bytes) }
+                dados: { bytesValue: dados }
               }
             }
           }
         ]
-      });
+      };
+      await chamar('POST', `${raiz}:commit`, corpo, { tempoLimite });
     },
 
     /** Baixa uma foto. Devolve null se ela ainda não chegou à nuvem (ou foi apagada). */

@@ -329,7 +329,7 @@ const conferir = (descricao, condicao, detalhe = '') => {
     const guardada = await page.evaluate(
       () =>
         new Promise(resolver => {
-          const pedido = indexedDB.open('clv-fotos', 1);
+          const pedido = indexedDB.open('clv-fotos');
           pedido.onsuccess = () => {
             const leitura = pedido.result.transaction('fotos').objectStore('fotos').getAll();
             leitura.onsuccess = () => resolver(leitura.result.map(f => ({ ...f, bytes: f.bytes.byteLength })));

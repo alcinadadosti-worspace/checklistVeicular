@@ -41,9 +41,13 @@ export async function instalar() {
   if (!atual) return false;
   pedido = null; // o aviso só pode ser usado uma vez
   avisar();
-  await atual.prompt();
-  const escolha = await atual.userChoice.catch(() => null);
-  return escolha?.outcome === 'accepted';
+  try {
+    await atual.prompt();
+    const escolha = await atual.userChoice;
+    return escolha?.outcome === 'accepted';
+  } catch {
+    return false; // o navegador recusou abrir a janela (ex.: já aberta): fica como estava
+  }
 }
 
 const assinar = ouvinte => {

@@ -4,7 +4,7 @@
 // ou sem internet. Depois a sincronização (src/lib/sincronizacao.js) envia para a nuvem
 // e traz o que os outros aparelhos gravaram.
 
-import { maisRecentesPrimeiro } from './registros.js';
+import { maisRecentesPrimeiro, normalizarRegistro, pesoDaVersao } from './registros.js';
 
 const CHAVE = 'clv.dados.v1';
 const VAZIO = () => ({ registros: {}, pendentes: [], cursor: null });
@@ -163,18 +163,32 @@ export const banco = {
   },
 
   /**
-   * Junta registros vindos da nuvem com os deste aparelho. Vale a versão mais nova
-   * (`atualizadoEm`); o que estiver mais novo aqui continua pendente de envio.
+   * Junta registros vindos da nuvem com os deste aparelho. Vale a versão de maior peso (excluído >
+   * volta registrada > volta pela saída seguinte > em rota; veja `pesoDaVersao`) e, com o mesmo
+   * peso, a mais nova (`atualizadoEm`). O que valer mais aqui continua (ou volta a ficar) pendente
+   * de envio.
    */
   aplicarRemotos(remotos, cursor) {
     let mudou = false;
     const proximo = { ...estado.registros };
     let pendentes = estado.pendentes;
-    for (const remoto of remotos) {
-      if (!remoto || typeof remoto.id !== 'string') continue;
+    for (const bruto of remotos) {
+      if (!bruto || typeof bruto.id !== 'string') continue;
+      const remoto = normalizarRegistro(bruto);
       const local = proximo[remoto.id];
-      if (local && local.atualizadoEm > remoto.atualizadoEm) continue;
-      if (local && local.atualizadoEm === remoto.atualizadoEm && !pendentes.includes(remoto.id)) continue;
+      if (local) {
+        const diferenca = pesoDaVersao(local) - pesoDaVersao(remoto);
+        if (diferenca > 0) {
+          // A versão daqui vale mais (ex.: volta registrada x volta automática): ela vai para a nuvem.
+          if (!pendentes.includes(local.id)) {
+            pendentes = [...pendentes, local.id];
+            mudou = true;
+          }
+          continue;
+        }
+        if (diferenca === 0 && local.atualizadoEm > remoto.atualizadoEm) continue;
+        if (diferenca === 0 && local.atualizadoEm === remoto.atualizadoEm && !pendentes.includes(remoto.id)) continue;
+      }
       proximo[remoto.id] = remoto;
       pendentes = pendentes.filter(id => id !== remoto.id);
       mudou = true;

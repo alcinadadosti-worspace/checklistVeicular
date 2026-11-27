@@ -19,6 +19,10 @@ const TARGET_URL = process.env.TARGET_URL || 'http://localhost:4173';
 const SAIDA = process.env.SAIDA || path.join(os.tmpdir(), 'checklist-e2e');
 const PROJETO = process.env.FIREBASE_PROJECT_ID || 'checklistveicular-6a274';
 const NOME = 'TESTE AUTOMATICO';
+// KMs de teste bem baixos: a "volta pela saída seguinte" nunca fecha uma viagem com KM maior, então
+// os checklists de teste não mexem em viagens reais que estejam em rota.
+const KM_SAIDA = 1;
+const KM_VOLTA = 124;
 const INICIO = Date.now(); // registros desta execução (o banco guarda, excluídos, os de execuções anteriores)
 const CODIGOS = Object.fromEntries(
   (process.env.CODIGOS_TESTE || '')
@@ -209,7 +213,7 @@ const limparBanco = async () => {
     await esperarSincronizado(A, 'A (motorista) ao abrir');
 
     console.log('2) Motorista envia um checklist de saída, com uma foto');
-    await preencher(A, 77000, { comFoto: true });
+    await preencher(A, KM_SAIDA, { comFoto: true });
     await esperarSincronizado(A, 'A depois de enviar');
     await A.screenshot({ path: path.join(SAIDA, 'banco-real-A-sucesso.png') });
 
@@ -238,7 +242,7 @@ const limparBanco = async () => {
     await A.waitForSelector('.tela--inicio');
     await A.locator('.viagem', { hasText: NOME }).locator('.botao').click();
     await A.waitForSelector('.tela--retorno');
-    await A.locator('.campo-km__entrada').fill('77123');
+    await A.locator('.campo-km__entrada').fill(String(KM_VOLTA));
     await A.click('.passo__campos .botao--g');
     await A.waitForSelector('.tela--sucesso', { timeout: 15000 });
     await esperarSincronizado(A, 'A depois do retorno');
@@ -246,7 +250,7 @@ const limparBanco = async () => {
     const textoB = (await linhaB.first().innerText()).replace(/\s+/g, ' ');
     conferir(
       'B vê o KM de volta e a distância',
-      textoB.includes('77.123') && textoB.includes('123 km'),
+      textoB.includes(`→ ${KM_VOLTA}`) && textoB.includes(`${KM_VOLTA - KM_SAIDA} km`),
       textoB.slice(0, 90)
     );
 
@@ -254,7 +258,7 @@ const limparBanco = async () => {
     await A.click('.sucesso .botao--g');
     await A.waitForSelector('.tela--inicio');
     await ctxA.setOffline(true);
-    await preencher(A, 77123);
+    await preencher(A, KM_VOLTA);
     await A.waitForTimeout(2500);
     const semRede = await situacao(A);
     conferir('A offline: registro guardado e pendente', semRede.pendentes === 1, semRede.rotulo);

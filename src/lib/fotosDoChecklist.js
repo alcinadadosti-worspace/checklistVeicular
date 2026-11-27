@@ -9,7 +9,7 @@
 
 export const FOTOS_POR_CHECKLIST = 4;
 const LADO_MAXIMO = 1280; // px no lado maior: dá para ler um painel ou ver um pneu
-export const TAMANHO_MAXIMO = 600 * 1024; // bem abaixo do limite de 1 MiB por documento
+export const TAMANHO_MAXIMO = 450 * 1024; // bem abaixo do limite de 1 MiB por documento e leve no 3G
 const DIA = 24 * 60 * 60 * 1000;
 
 const aleatorio = () => Math.random().toString(36).slice(2, 8);
@@ -25,14 +25,23 @@ export const resumoDasFotos = fotos =>
 /* --- cofre do aparelho ---------------------------------------------------------------- */
 
 // Cada foto guardada: { id, bytes (ArrayBuffer), tipo, largura, altura, unidade,
-//                       registroId (null enquanto é rascunho), enviada, criadoEm }
+//                       registroId (null enquanto é rascunho), enviada, criadoEm, fila }
+// `fila` diz o que falta fazer com ela (e tem índice, para não ler todas as imagens a cada ciclo):
+//   'enviar' — o checklist foi enviado e a foto ainda não subiu;
+//   'apagar' — o checklist foi excluído e falta tirar a foto da nuvem (só a marca, sem a imagem);
+//   'nada'   — rascunho, ou já enviada.
+const comFila = foto => ({
+  ...foto,
+  fila: foto.apagar ? 'apagar' : foto.registroId && !foto.enviada ? 'enviar' : 'nada'
+});
 
 function cofreEmMemoria() {
   const fotos = new Map();
   return {
-    guardar: async foto => void fotos.set(foto.id, { ...foto }),
+    guardar: async foto => void fotos.set(foto.id, comFila(foto)),
     ler: async id => (fotos.has(id) ? { ...fotos.get(id) } : null),
     todas: async () => [...fotos.values()].map(foto => ({ ...foto })),
+    naFila: async fila => [...fotos.values()].filter(foto => foto.fila === fila).map(foto => ({ ...foto })),
     apagar: async id => void fotos.delete(id)
   };
 }
@@ -41,11 +50,45 @@ function cofreNoIndexedDB(indexedDB) {
   let conexao = null;
   const abrir = () => {
     conexao ||= new Promise((resolver, rejeitar) => {
-      const pedido = indexedDB.open('clv-fotos', 1);
-      pedido.onupgradeneeded = () => pedido.result.createObjectStore('fotos', { keyPath: 'id' });
-      pedido.onsuccess = () => resolver(pedido.result);
-      pedido.onerror = () => rejeitar(pedido.error);
-      pedido.onblocked = () => rejeitar(new Error('IndexedDB bloqueado'));
+      const pedido = indexedDB.open('clv-fotos', 2);
+      pedido.onupgradeneeded = evento => {
+        const db = pedido.result;
+        const loja =
+          evento.oldVersion < 1
+            ? db.createObjectStore('fotos', { keyPath: 'id' })
+            : pedido.transaction.objectStore('fotos');
+        if (!loja.indexNames.contains('fila')) loja.createIndex('fila', 'fila');
+        // Fotos guardadas pela versão anterior: calcula a fila de cada uma.
+        if (evento.oldVersion >= 1) {
+          loja.openCursor().onsuccess = ({ target }) => {
+            const cursor = target.result;
+            if (!cursor) return;
+            cursor.update(comFila(cursor.value));
+            cursor.continue();
+          };
+        }
+      };
+      pedido.onsuccess = () => {
+        const db = pedido.result;
+        // Conexão perdida (o iPhone fecha depois de um tempo em segundo plano) ou versão nova
+        // aberta em outra aba: na próxima operação, abre de novo.
+        db.onclose = () => {
+          conexao = null;
+        };
+        db.onversionchange = () => {
+          db.close();
+          conexao = null;
+        };
+        resolver(db);
+      };
+      pedido.onerror = () => {
+        conexao = null;
+        rejeitar(pedido.error);
+      };
+      pedido.onblocked = () => {
+        conexao = null;
+        rejeitar(new Error('IndexedDB bloqueado'));
+      };
     });
     return conexao;
   };
@@ -60,61 +103,107 @@ function cofreNoIndexedDB(indexedDB) {
     });
   };
   return {
-    guardar: foto => operar('readwrite', loja => loja.put(foto)).then(() => undefined),
+    reabrir: () => {
+      conexao = null;
+    },
+    guardar: foto => operar('readwrite', loja => loja.put(comFila(foto))).then(() => undefined),
     ler: id => operar('readonly', loja => loja.get(id)).then(foto => foto || null),
     todas: () => operar('readonly', loja => loja.getAll()).then(fotos => fotos || []),
+    naFila: fila => operar('readonly', loja => loja.index('fila').getAll(fila)).then(fotos => fotos || []),
     apagar: id => operar('readwrite', loja => loja.delete(id)).then(() => undefined)
   };
 }
 
+/** Junta duas listas de fotos; a da memória (mais recente, se o disco falhou) vale mais. */
+const unir = (doDisco, daMemoria) => {
+  const porId = new Map(doDisco.map(foto => [foto.id, foto]));
+  for (const foto of daMemoria) porId.set(foto.id, foto);
+  return [...porId.values()];
+};
+
 /**
- * Cofre de fotos do aparelho. Usa o IndexedDB; se o navegador não deixar (ou nos testes),
- * fica na memória — a foto ainda é enviada, só não sobrevive a recarregar a página.
+ * Cofre de fotos do aparelho. Usa o IndexedDB; se uma operação falhar, reabre a conexão e tenta
+ * de novo, e só então guarda na memória (a foto ainda é enviada, só não sobrevive a fechar o app).
+ * As leituras olham os dois lugares, para nenhuma foto "sumir" depois de uma falha.
  */
 export function criarCofreDeFotos({ indexedDB = globalThis.indexedDB } = {}) {
-  const reserva = cofreEmMemoria();
-  let base = indexedDB ? cofreNoIndexedDB(indexedDB) : reserva;
-  const usar = async (metodo, ...argumentos) => {
+  const memoria = cofreEmMemoria();
+  const disco = indexedDB ? cofreNoIndexedDB(indexedDB) : null;
+  const noDisco = async (metodo, ...argumentos) => {
+    if (!disco) throw new Error('sem IndexedDB');
     try {
-      return await base[metodo](...argumentos);
+      return await disco[metodo](...argumentos);
     } catch {
-      base = reserva;
-      return reserva[metodo](...argumentos);
+      disco.reabrir();
+      return disco[metodo](...argumentos);
     }
   };
 
-  return {
-    guardar: foto => usar('guardar', foto),
-    ler: id => usar('ler', id),
-    apagar: id => usar('apagar', id),
+  const guardar = async foto => {
+    try {
+      await noDisco('guardar', foto);
+      await memoria.apagar(foto.id);
+    } catch {
+      await memoria.guardar(foto);
+    }
+  };
+  const ler = async id => (await memoria.ler(id)) ?? (await noDisco('ler', id).catch(() => null));
+  const apagar = async id => {
+    await memoria.apagar(id);
+    await noDisco('apagar', id).catch(() => {});
+  };
+  const naFila = async fila =>
+    unir(await noDisco('naFila', fila).catch(() => []), await memoria.naFila(fila)).sort(
+      (a, b) => (a.criadoEm || 0) - (b.criadoEm || 0)
+    );
 
-    /** Liga as fotos do rascunho ao checklist enviado: a partir daí elas entram na fila de envio. */
+  return {
+    guardar,
+    ler,
+    apagar,
+
+    /**
+     * Liga as fotos do rascunho ao checklist enviado: a partir daí elas entram na fila de envio.
+     * Devolve os ids que não foram encontrados no aparelho (para o checklist não apontar para eles).
+     */
     async vincular(ids, registroId) {
+      const faltando = [];
       for (const id of ids) {
-        const foto = await usar('ler', id);
-        if (foto) await usar('guardar', { ...foto, registroId, enviada: false });
+        const foto = await ler(id);
+        if (foto) await guardar({ ...foto, registroId, enviada: false });
+        else faltando.push(id);
       }
+      return faltando;
     },
 
     /** Fotos de checklists já enviados que ainda não chegaram à nuvem. */
-    async pendentes() {
-      const todas = await usar('todas');
-      return todas.filter(foto => foto.registroId && !foto.enviada).sort((a, b) => a.criadoEm - b.criadoEm);
-    },
+    pendentes: () => naFila('enviar'),
 
     async marcarEnviada(id) {
-      const foto = await usar('ler', id);
-      if (foto) await usar('guardar', { ...foto, enviada: true });
+      const foto = await ler(id);
+      if (foto) await guardar({ ...foto, enviada: true });
     },
 
+    /** Checklist excluído: a foto sai do aparelho e fica só a marca para tirá-la da nuvem. */
+    marcarParaApagar: id => guardar({ id, apagar: true, criadoEm: Date.now() }),
+
+    /** Fotos que faltam tirar da nuvem. */
+    aApagar: () => naFila('apagar'),
+
     /**
-     * Arrumação: apaga fotos de rascunhos abandonados (o rascunho vence em 12 h) e as já
-     * enviadas há mais de 60 dias (continuam na nuvem; se alguém abrir, baixa de novo).
+     * Arrumação (ao abrir o app): apaga fotos de rascunhos abandonados, as já enviadas há mais de
+     * 60 dias (continuam na nuvem; se alguém abrir, baixa de novo) e marcas de exclusão antigas.
+     * `emUso`: ids das fotos dos rascunhos ainda abertos, que nunca são apagadas.
      */
-    async arrumar(agora = Date.now()) {
-      for (const foto of await usar('todas')) {
+    async arrumar(agora = Date.now(), emUso = new Set()) {
+      const todas = unir(await noDisco('todas').catch(() => []), await memoria.todas());
+      for (const foto of todas) {
+        if (emUso.has(foto.id)) continue;
         const idade = agora - (foto.criadoEm || 0);
-        if ((!foto.registroId && idade > DIA) || (foto.enviada && idade > 60 * DIA)) await usar('apagar', foto.id);
+        const rascunhoAbandonado = !foto.registroId && !foto.apagar && idade > DIA;
+        const enviadaAntiga = foto.enviada && idade > 60 * DIA;
+        const marcaAntiga = foto.apagar && idade > 30 * DIA;
+        if (rascunhoAbandonado || enviadaAntiga || marcaAntiga) await apagar(foto.id);
       }
     }
   };
@@ -188,37 +277,53 @@ export async function prepararFoto(arquivo) {
 
 /* --- mostrar uma foto (do aparelho ou baixada da nuvem) -------------------------------- */
 
-const enderecos = new Map(); // id -> Promise<url | null>
+const enderecos = new Map(); // id -> Promise<url | null>, do menos para o mais usado
+const LIMITE_DE_ENDERECOS = 80; // acima disso, libera da memória as fotos vistas há mais tempo
+
+const liberar = promessa => promessa.then(url => url && URL.revokeObjectURL(url)).catch(() => {});
 
 /**
  * Endereço (blob:) para mostrar a foto. Procura no aparelho; se não tiver, baixa da nuvem
  * e guarda no aparelho. Devolve null se a foto ainda não chegou à nuvem.
  */
 export function enderecoDaFoto(id, { nuvem, cofre = cofreDeFotos } = {}) {
-  if (!enderecos.has(id)) {
-    const promessa = (async () => {
-      let foto = await cofre.ler(id);
-      if (!foto && nuvem?.ativa) {
-        foto = await nuvem.buscarFoto(id);
-        if (foto) await cofre.guardar({ ...foto, enviada: true, criadoEm: Date.now() });
-      }
-      return foto ? URL.createObjectURL(new Blob([foto.bytes], { type: foto.tipo || 'image/jpeg' })) : null;
-    })();
-    // Se não deu (sem internet, ou ainda não enviada), tenta de novo na próxima vez.
-    promessa.then(
-      url => {
-        if (!url) enderecos.delete(id);
-      },
-      () => enderecos.delete(id)
-    );
+  if (enderecos.has(id)) {
+    // Usada de novo: passa para o fim da fila (é a última a ser liberada).
+    const promessa = enderecos.get(id);
+    enderecos.delete(id);
     enderecos.set(id, promessa);
+    return promessa;
   }
-  return enderecos.get(id);
+  const promessa = (async () => {
+    let foto = await cofre.ler(id);
+    if (!foto?.bytes) foto = null; // marca de exclusão (sem imagem) não serve para mostrar
+    if (!foto && nuvem?.ativa) {
+      foto = await nuvem.buscarFoto(id);
+      if (foto) await cofre.guardar({ ...foto, enviada: true, criadoEm: Date.now() });
+    }
+    return foto ? URL.createObjectURL(new Blob([foto.bytes], { type: foto.tipo || 'image/jpeg' })) : null;
+  })();
+  // Se não deu (sem internet, ou ainda não enviada), tenta de novo na próxima vez.
+  promessa.then(
+    url => {
+      if (!url && enderecos.get(id) === promessa) enderecos.delete(id);
+    },
+    () => {
+      if (enderecos.get(id) === promessa) enderecos.delete(id);
+    }
+  );
+  enderecos.set(id, promessa);
+  while (enderecos.size > LIMITE_DE_ENDERECOS) {
+    const [maisAntigo, antiga] = enderecos.entries().next().value;
+    enderecos.delete(maisAntigo);
+    liberar(antiga);
+  }
+  return promessa;
 }
 
 /** Esquece o endereço de uma foto removida do rascunho. */
 export function esquecerFoto(id) {
   const promessa = enderecos.get(id);
   enderecos.delete(id);
-  promessa?.then(url => url && URL.revokeObjectURL(url)).catch(() => {});
+  if (promessa) liberar(promessa);
 }

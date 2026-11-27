@@ -55,9 +55,19 @@ Quando o usuário escrever **"vamos continuar"**:
 - **Versão com Marcio e Pedro no ar** desde 27/11 (~10h), por Manual Deploy do usuário. No site
   publicado passaram em 27/11: `fluxo-motorista.js` nas duas unidades e `offline.js` (os dois
   bloqueiam o banco).
-- Testes: 41 de dados (`npm test`) e 6 de navegador em `tests/e2e`, todos passando em 27/11 na
+- Testes: 52 de dados (`npm test`) e 8 de navegador em `tests/e2e`, todos passando em 27/11 na
   prévia local; `dois-aparelhos-banco-real.js` (com foto) passou na prévia local contra o banco
   real, já com as regras novas.
+- **Revisão de bugs (27/11, pedido do usuário; não publicado):** quando dois aparelhos discordam,
+  vale o **peso da versão** (`pesoDaVersao`: excluído > volta registrada > volta pela saída seguinte
+  > em rota) e só no empate o maior `atualizadoEm` — a volta automática nunca desfaz uma volta real
+  > nem ressuscita excluído. Registros vindos da nuvem passam por `normalizarRegistro`. Volta automática
+  > só até 2.000 km (`KM_MAXIMO_ENTRE_SAIDAS`). Cofre de fotos v2 (IndexedDB `clv-fotos` versão 2,
+  > índice `fila`: enviar/apagar/nada): reabre a conexão antes de cair para a memória, lê os dois
+  > lugares; fotos de excluídos entram na fila "apagar" e são retiradas da nuvem em ciclos seguintes;
+  > foto só sobe depois do checklist dela; o assistente espera fotos "Preparando…"; envio de foto com
+  > prazo pelo tamanho (máx. 450 KB). `dois-aparelhos-banco-real.js` usa KM 1→124 para não fechar
+  > viagens reais.
 - **Revisão/manutenção na inspeção** (27/11, pedido do usuário; **não publicado**): botão
   "Registrar revisão ou manutenção" no passo Inspeção abre um quadro com "O que foi feito" e até 4
   fotos; vai no registro como `manutencao: { descricao, fotos }` (ou null; sem texto não conta, e

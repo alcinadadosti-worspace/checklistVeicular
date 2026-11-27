@@ -6,6 +6,8 @@ import { limparNome } from './formato.js';
 import { resumoDasFotos } from './fotosDoChecklist.js';
 
 export const KM_MAXIMO = 9_999_999;
+/** Mais que isso entre uma saída e a seguinte não é viagem de rota: provável erro de digitação. */
+export const KM_MAXIMO_ENTRE_SAIDAS = 2000;
 const IDS_ITENS = ITENS.map(item => item.id);
 const IDS_SITUACOES = SITUACOES.map(situacao => situacao.id);
 
@@ -103,8 +105,29 @@ export function criarRegistro(
 
 /** Fecha a viagem: grava o KM de volta e a data/hora do retorno. */
 export function registrarRetorno(registro, kmVolta, agora = new Date()) {
-  return { ...registro, kmVolta, retornoEm: agora.toISOString() };
+  return { ...registro, kmVolta, retornoEm: agora.toISOString(), voltaPelaSaidaSeguinte: false };
 }
+
+/**
+ * Quanto "vale" cada versão de um registro quando dois aparelhos discordam. Vale mais a que tem
+ * informação mais definitiva: excluído > volta registrada pelo motorista > volta pela saída
+ * seguinte > em rota. Só com o mesmo peso decide a mais recente (`atualizadoEm`).
+ * Assim um celular que ainda não sabia da volta registrada (ou da exclusão) não a desfaz.
+ */
+export const pesoDaVersao = registro => {
+  if (registro.excluido) return 3;
+  if (registro.kmVolta === null || registro.kmVolta === undefined) return 0;
+  return registro.voltaPelaSaidaSeguinte ? 1 : 2;
+};
+
+/** Registro vindo da nuvem: garante os formatos que as telas usam (dado malformado não trava a ficha). */
+export const normalizarRegistro = registro => ({
+  ...registro,
+  outros: typeof registro.outros === 'string' ? registro.outros : '',
+  fotos: resumoDasFotos(registro.fotos),
+  manutencao: limparManutencao(registro.manutencao),
+  voltaPelaSaidaSeguinte: registro.voltaPelaSaidaSeguinte === true
+});
 
 export const emRota = registro => !registro.excluido && (registro.kmVolta === null || registro.kmVolta === undefined);
 
@@ -112,8 +135,9 @@ export const emRota = registro => !registro.excluido && (registro.kmVolta === nu
  * "A volta é a saída seguinte": viagens da unidade que ficaram em rota (o motorista não registrou
  * a volta) são fechadas com o KM de saída do checklist seguinte a cada uma — normalmente o que está
  * sendo enviado agora. A data/hora da volta passa a ser a desse checklist e o registro fica marcado
- * com `voltaPelaSaidaSeguinte`. Não fecha se esse KM for menor que o de saída da viagem (provável
- * erro de digitação: melhor a administração ver a viagem em aberto).
+ * com `voltaPelaSaidaSeguinte`. Não fecha se esse KM for menor que o de saída da viagem ou mais de
+ * KM_MAXIMO_ENTRE_SAIDAS acima (provável erro de digitação: melhor a administração ver a viagem em
+ * aberto). Se outro aparelho registrar a volta de verdade, ela vale mais (veja `pesoDaVersao`).
  * Devolve só os registros alterados, para gravar.
  */
 export function fecharPelaSaidaSeguinte(registros, novo) {
@@ -126,7 +150,8 @@ export function fecharPelaSaidaSeguinte(registros, novo) {
   linha.forEach((registro, indice) => {
     const seguinte = linha[indice + 1];
     if (registro === novo || !seguinte || !emRota(registro)) return;
-    if (!Number.isInteger(seguinte.kmSaida) || seguinte.kmSaida < registro.kmSaida) return;
+    const rodados = seguinte.kmSaida - registro.kmSaida;
+    if (!Number.isInteger(seguinte.kmSaida) || rodados < 0 || rodados > KM_MAXIMO_ENTRE_SAIDAS) return;
     fechadas.push({
       ...registro,
       kmVolta: seguinte.kmSaida,

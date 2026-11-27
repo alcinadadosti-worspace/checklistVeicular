@@ -46,23 +46,28 @@ const deslizar = {
  * Viagem anterior que ficou "em rota" (sem KM de volta): avisa que este checklist vai fechá-la com
  * o KM de saída de agora — ou que não vai, se o KM digitado for menor que o de saída dela.
  */
-function AvisoViagemAberta({ abertas, fechadas }) {
+function AvisoViagemAberta({ abertas, fechadas, saida }) {
   if (abertas.length === 0) return null;
   const ficam = abertas.filter(aberta => !fechadas.some(fechada => fechada.id === aberta.id));
   if (ficam.length > 0) {
     const viagem = ficam[0];
+    const motivo =
+      saida !== null && saida < viagem.kmSaida
+        ? 'O KM de saída digitado é menor'
+        : `O KM de saída digitado daria ${numero(saida - viagem.kmSaida)} km rodados, mais do que uma viagem de rota`;
     return (
       <div className="aviso aviso--erro aviso--viagem-aberta">
         <Icone nome="alerta" tamanho={18} />
         <p>
           A viagem de <strong>{viagem.motoristaNome}</strong> ({dataHora(viagem.preenchidoEm)}) saiu com{' '}
-          <strong className="mono">{numero(viagem.kmSaida)}</strong> km e ficou sem KM de volta. O KM de saída digitado
-          é menor, então ela continua em rota. Confira o painel.
+          <strong className="mono">{numero(viagem.kmSaida)}</strong> km e ficou sem KM de volta. {motivo}, então ela
+          continua em rota. Confira o painel.
         </p>
       </div>
     );
   }
   const viagem = abertas[0];
+  const rodados = saida !== null && abertas.length === 1 ? saida - viagem.kmSaida : null;
   return (
     <div className="aviso aviso--destaque aviso--viagem-aberta">
       <Icone nome="rota" tamanho={18} />
@@ -71,7 +76,8 @@ function AvisoViagemAberta({ abertas, fechadas }) {
           <>
             A viagem de <strong>{viagem.motoristaNome}</strong> ({dataHora(viagem.preenchidoEm)}, saída{' '}
             <span className="mono">{numero(viagem.kmSaida)}</span> km) ficou sem KM de volta. Ao enviar este checklist,
-            ela é fechada com o <strong>KM de saída de agora</strong>.
+            ela é fechada com o <strong>KM de saída de agora</strong>
+            {rodados !== null ? ` (${numero(rodados)} km rodados)` : ''}.
           </>
         ) : (
           <>
@@ -132,7 +138,7 @@ function PassoVeiculo({ unidade, motoristaNome, dados, mudar, erros, ultimo, abe
           </button>
         ) : null}
 
-        <AvisoViagemAberta abertas={abertas} fechadas={fechadas} />
+        <AvisoViagemAberta abertas={abertas} fechadas={fechadas} saida={saida} />
       </div>
     </div>
   );
@@ -146,7 +152,7 @@ function PassoVeiculo({ unidade, motoristaNome, dados, mudar, erros, ultimo, abe
  * Revisão/manutenção feita no veículo (troca de óleo, revisão, pneu…): o motorista abre o quadro,
  * escreve o que foi feito e, se quiser, anexa fotos (nota, peça, serviço).
  */
-function QuadroManutencao({ unidade, manutencao, aoAbrir, aoRemover, aoMudarTexto, aoMudarFotos, erro }) {
+function QuadroManutencao({ unidade, manutencao, aoAbrir, aoRemover, aoMudarTexto, aoMudarFotos, aoPreparar, erro }) {
   if (!manutencao) {
     return (
       <button type="button" className="manutencao-abrir" onClick={aoAbrir}>
@@ -204,6 +210,7 @@ function QuadroManutencao({ unidade, manutencao, aoAbrir, aoRemover, aoMudarText
       <CampoFotos
         fotos={manutencao.fotos ?? []}
         unidadeId={unidade.id}
+        aoPreparar={aoPreparar}
         aoMudar={aoMudarFotos}
         rotulo="Fotos do serviço"
         dica="Nota fiscal, peça trocada, painel com a quilometragem… A administração vê na ficha."
@@ -212,7 +219,7 @@ function QuadroManutencao({ unidade, manutencao, aoAbrir, aoRemover, aoMudarText
   );
 }
 
-function PassoInspecao({ unidade, dados, mudar, mudarFotos, acoesManutencao, erro, cobrar }) {
+function PassoInspecao({ unidade, dados, mudar, mudarFotos, acoesManutencao, aoPreparar, erro, cobrar }) {
   const resumo = resumoDosItens(dados.itens);
   const pior = piorSituacao(dados.itens);
   const cor = pior && pior !== 'bom' ? COR_DA_SITUACAO[pior] : resumo.completo ? COR_DA_SITUACAO.bom : '#38bdf8';
@@ -288,7 +295,7 @@ function PassoInspecao({ unidade, dados, mudar, mudarFotos, acoesManutencao, err
           placeholder="Algo que não está na lista? Escreva aqui (ex.: barulho na suspensão, luz acesa no painel, arranhão novo…)"
           onChange={evento => mudar({ outros: evento.target.value })}
         />
-        <CampoFotos fotos={dados.fotos ?? []} unidadeId={unidade.id} aoMudar={mudarFotos} />
+        <CampoFotos fotos={dados.fotos ?? []} unidadeId={unidade.id} aoMudar={mudarFotos} aoPreparar={aoPreparar} />
       </div>
 
       <QuadroManutencao unidade={unidade} manutencao={dados.manutencao} {...acoesManutencao} />
@@ -393,7 +400,7 @@ function PassoRevisao({ unidade, motoristaNome, dados, erros, abertas, fechadas 
           </div>
         ) : (
           <>
-            <AvisoViagemAberta abertas={abertas} fechadas={fechadas} />
+            <AvisoViagemAberta abertas={abertas} fechadas={fechadas} saida={saida} />
             <div className="aviso">
               <Icone nome="rota" tamanho={18} />
               <p>
@@ -465,8 +472,13 @@ export default function Checklist({ unidade, motorista, formularioId, passo, aoM
 
   const mudar = parte => setDados(atual => ({ ...atual, ...parte }));
   const mudarFotos = atualizar => setDados(atual => ({ ...atual, fotos: atualizar(atual.fotos ?? []) }));
+  // Só mexe no quadro se ele estiver aberto (uma foto que termina de carregar depois que o quadro
+  // foi removido não o recria).
   const mudarManutencao = parte =>
-    setDados(atual => ({ ...atual, manutencao: { descricao: '', fotos: [], ...atual.manutencao, ...parte(atual) } }));
+    setDados(atual => (atual.manutencao ? { ...atual, manutencao: { ...atual.manutencao, ...parte(atual) } } : atual));
+  // Fotos ainda sendo preparadas: o assistente espera por elas antes de seguir.
+  const [preparandoFotos, setPreparandoFotos] = useState(0);
+  const aoPreparar = quantas => setPreparandoFotos(atual => Math.max(0, atual + quantas));
   const acoesManutencao = {
     aoAbrir: () => mudar({ manutencao: { descricao: '', fotos: [] } }),
     aoRemover: () => {
@@ -477,7 +489,8 @@ export default function Checklist({ unidade, motorista, formularioId, passo, aoM
       mudar({ manutencao: null });
     },
     aoMudarTexto: descricao => mudarManutencao(() => ({ descricao })),
-    aoMudarFotos: atualizar => mudarManutencao(atual => ({ fotos: atualizar(atual.manutencao?.fotos ?? []) }))
+    aoMudarFotos: atualizar => mudarManutencao(atual => ({ fotos: atualizar(atual.manutencao.fotos ?? []) })),
+    aoPreparar
   };
 
   const ultimo = useMemo(() => ultimoKm(registros, unidade.id), [registros, unidade.id]);
@@ -531,22 +544,34 @@ export default function Checklist({ unidade, motorista, formularioId, passo, aoM
       fotos: dados.fotos,
       manutencao: dados.manutencao
     });
-    // As fotos entram na fila de envio junto com o checklist.
-    await cofreDeFotos
-      .vincular(
+    // As fotos entram na fila de envio junto com o checklist; se alguma não estiver mais no
+    // aparelho, o checklist não aponta para ela (senão a ficha mostraria uma foto que nunca chega).
+    const faltando = new Set(
+      await cofreDeFotos.vincular(
         fotosDoRegistro(registro).map(foto => foto.id),
         registro.id
       )
-      .catch(() => {});
-    // Viagem anterior que ficou sem KM de volta: fecha com o KM de saída deste checklist.
-    for (const viagem of fecharPelaSaidaSeguinte(registros, registro)) banco.gravar(viagem);
-    const salvo = banco.gravar(registro);
+    );
+    const semFaltando = fotos => fotos.filter(foto => !faltando.has(foto.id));
+    const final =
+      faltando.size === 0
+        ? registro
+        : {
+            ...registro,
+            fotos: semFaltando(registro.fotos),
+            manutencao: registro.manutencao && { ...registro.manutencao, fotos: semFaltando(registro.manutencao.fotos) }
+          };
+    // Viagem anterior que ficou sem KM de volta: fecha com o KM de saída deste checklist. Usa o banco
+    // de agora (não o da tela), que pode ter recebido novidades enquanto as fotos eram ligadas.
+    for (const viagem of fecharPelaSaidaSeguinte(banco.obter().registros, final)) banco.gravar(viagem);
+    const salvo = banco.gravar(final);
     apagarRascunho(unidade);
     navigator.vibrate?.([40, 60, 40]);
     aoConcluir(salvo.id, passo);
   };
 
   const avancar = () => {
+    if (preparandoFotos > 0) return; // o botão mostra "Preparando fotos…"
     const erros = errosDoPasso[passo];
     if (Object.keys(erros).length > 0) {
       setTentou(atual => ({ ...atual, [passo]: true }));
@@ -629,6 +654,7 @@ export default function Checklist({ unidade, motorista, formularioId, passo, aoM
                 dados={dados}
                 mudar={mudar}
                 mudarFotos={mudarFotos}
+                aoPreparar={aoPreparar}
                 acoesManutencao={{ ...acoesManutencao, erro: mostrar(1).manutencao }}
                 erro={mostrar(1).itens}
                 cobrar={Boolean(tentou[1])}
@@ -653,12 +679,12 @@ export default function Checklist({ unidade, motorista, formularioId, passo, aoM
             {passo === 0 ? 'Sair' : 'Voltar'}
           </Botao>
           {passo < PASSOS.length - 1 ? (
-            <Botao tamanho="g" iconeDepois="seta-direita" onClick={avancar}>
-              Continuar
+            <Botao tamanho="g" iconeDepois="seta-direita" carregando={preparandoFotos > 0} onClick={avancar}>
+              {preparandoFotos > 0 ? 'Preparando fotos…' : 'Continuar'}
             </Botao>
           ) : (
-            <Botao tamanho="g" icone="check" carregando={enviando} onClick={avancar}>
-              Enviar checklist
+            <Botao tamanho="g" icone="check" carregando={enviando || preparandoFotos > 0} onClick={avancar}>
+              {preparandoFotos > 0 ? 'Preparando fotos…' : 'Enviar checklist'}
             </Botao>
           )}
         </div>

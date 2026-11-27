@@ -1,14 +1,14 @@
 // Sincronização entre o banco local do aparelho e a nuvem.
 //
 // Ciclo: 1) busca o que mudou na nuvem e junta com o local; 2) envia os checklists pendentes;
-// 3) envia as fotos anexadas que ainda não subiram.
+// 3) envia as fotos anexadas que ainda não subiram; 4) tira da nuvem as fotos de checklists excluídos.
 // Roda ao abrir o app, ao voltar a internet, ao voltar para a aba, depois de cada
 // gravação e de tempos em tempos. Se falhar, tenta de novo sozinha (com espera crescente).
 
 import { banco } from './banco.js';
 import { cofreDeFotos } from './fotosDoChecklist.js';
 import { nuvem as nuvemPadrao } from './nuvem.js';
-import { fotosDoRegistro } from './registros.js';
+import { fotosDoRegistro, normalizarRegistro } from './registros.js';
 
 const ESPERAS_APOS_ERRO = [5000, 15000, 30000, 60000, 120000];
 
@@ -50,12 +50,13 @@ export function criarSincronizacao({
     }, espera);
   };
 
-  // Checklist excluído: as fotos dele saem da nuvem e do aparelho (as regras só deixam
-  // apagar a foto depois que o checklist está marcado como excluído).
+  // Checklist excluído: as fotos dele saem do aparelho e entram na fila para sair da nuvem
+  // (passo 4, que tenta de novo a cada ciclo até conseguir). Foto que nunca subiu só sai daqui.
   const apagarFotosDe = async registro => {
-    for (const foto of fotosDoRegistro(registro)) {
-      await nuvem.apagarFoto(foto.id).catch(() => {});
-      await fotos.apagar(foto.id).catch(() => {});
+    for (const { id } of fotosDoRegistro(registro)) {
+      const local = await fotos.ler(id);
+      if (local && !local.enviada && !local.apagar) await fotos.apagar(id);
+      else await fotos.marcarParaApagar(id);
     }
   };
 
@@ -63,6 +64,17 @@ export function criarSincronizacao({
     // 1) nuvem -> aparelho
     const { registros, cursor } = await nuvem.buscar(dados.cursor());
     dados.aplicarRemotos(registros, cursor);
+    // Excluído em outro aparelho (ex.: pela administração): as fotos que este aparelho tem
+    // (inclusive as que ele mesmo enviou) também saem.
+    for (const remoto of registros) {
+      if (!remoto?.excluido) continue;
+      for (const { id } of fotosDoRegistro(normalizarRegistro(remoto))) {
+        const local = await fotos.ler(id);
+        if (!local || local.apagar) continue;
+        if (local.enviada) await fotos.marcarParaApagar(id);
+        else await fotos.apagar(id); // nunca subiu: só sai do aparelho
+      }
+    }
 
     // 2) aparelho -> nuvem
     let recusados = 0;
@@ -86,12 +98,15 @@ export function criarSincronizacao({
       if (registro.excluido) await apagarFotosDe(registro);
     }
 
-    // 3) fotos anexadas -> nuvem (depois dos checklists: o texto chega primeiro)
+    // 3) fotos anexadas -> nuvem, só depois que o checklist delas chegou (o texto vem primeiro)
+    const aindaPendentes = new Set(dados.pendentes());
     for (const foto of await fotos.pendentes()) {
-      if (dados.registro(foto.registroId)?.excluido) {
+      const registro = dados.registro(foto.registroId);
+      if (registro?.excluido) {
         await fotos.apagar(foto.id);
         continue;
       }
+      if (aindaPendentes.has(foto.registroId)) continue;
       try {
         await nuvem.enviarFoto(foto);
         await fotos.marcarEnviada(foto.id);
@@ -99,6 +114,18 @@ export function criarSincronizacao({
         recusar(erro);
       }
     }
+
+    // 4) fotos de checklists excluídos -> fora da nuvem
+    for (const { id } of await fotos.aApagar()) {
+      try {
+        await nuvem.apagarFoto(id);
+      } catch (erro) {
+        if (erro?.tipo === 'rede' || erro?.tipo === 'servidor') break; // tenta no próximo ciclo
+        // Recusado: a foto não está na nuvem (nunca subiu) ou o checklist dela sumiu de vez.
+      }
+      await fotos.apagar(id);
+    }
+
     if (erroDeDados) {
       const recusa = new Error(erroDeDados.message);
       recusa.tipo = erroDeDados.tipo;

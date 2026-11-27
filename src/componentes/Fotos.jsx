@@ -21,19 +21,38 @@ const AVISOS = {
   'sem-conexao': 'Sem conexão'
 };
 
-/** Endereço da foto para o <img>: do aparelho ou baixada da nuvem. */
+const NOVA_TENTATIVA = 15000;
+
+/**
+ * Endereço da foto para o <img>: do aparelho ou baixada da nuvem. Se ainda não chegou (o
+ * motorista está sem sinal) ou faltou conexão, tenta de novo de tempos em tempos.
+ */
 function useEnderecoDaFoto(id) {
   const [estado, setEstado] = useState({ id: null, url: null, situacao: 'carregando' });
+  const [tentativa, setTentativa] = useState(0);
   useEffect(() => {
     let vivo = true;
+    let relogio = null;
+    const deNovo = () => {
+      relogio = setTimeout(() => setTentativa(atual => atual + 1), NOVA_TENTATIVA);
+    };
     enderecoDaFoto(id, { nuvem }).then(
-      url => vivo && setEstado({ id, url, situacao: url ? 'pronta' : 'aguardando' }),
-      () => vivo && setEstado({ id, url: null, situacao: 'sem-conexao' })
+      url => {
+        if (!vivo) return;
+        setEstado({ id, url, situacao: url ? 'pronta' : 'aguardando' });
+        if (!url) deNovo();
+      },
+      () => {
+        if (!vivo) return;
+        setEstado({ id, url: null, situacao: 'sem-conexao' });
+        deNovo();
+      }
     );
     return () => {
       vivo = false;
+      clearTimeout(relogio);
     };
-  }, [id]);
+  }, [id, tentativa]);
   return estado.id === id ? estado : { url: null, situacao: 'carregando' };
 }
 
@@ -148,6 +167,7 @@ export function CampoFotos({
   fotos,
   unidadeId,
   aoMudar,
+  aoPreparar,
   rotulo = 'Fotos',
   dica = 'Mostre o que viu: um pneu, um arranhão, uma luz no painel. A administração vê na ficha.'
 }) {
@@ -167,6 +187,7 @@ export function CampoFotos({
       escolhidos.length > arquivos.length ? `Dá para anexar até ${FOTOS_POR_CHECKLIST} fotos por checklist.` : ''
     );
     setPreparando(atual => atual + arquivos.length);
+    aoPreparar?.(arquivos.length);
     let falhas = 0;
     for (const arquivo of arquivos) {
       try {
@@ -187,6 +208,7 @@ export function CampoFotos({
         falhas += 1;
       }
       setPreparando(atual => atual - 1);
+      aoPreparar?.(-1);
     }
     if (falhas > 0) {
       setErro(falhas === 1 ? 'Não deu para abrir uma das fotos. Tente outra.' : 'Não deu para abrir algumas fotos.');

@@ -26,6 +26,8 @@ import {
   emRota,
   fecharPelaSaidaSeguinte,
   fotosDoRegistro,
+  normalizarRegistro,
+  pesoDaVersao,
   temManutencao,
   kmRodados,
   registrarRetorno,
@@ -171,6 +173,153 @@ describe('motoristas', () => {
   });
 });
 
+describe('dados malformados vindos da nuvem', () => {
+  it('são arrumados antes de chegar às telas', () => {
+    const lixo = normalizarRegistro({
+      ...novoRegistro(),
+      outros: { texto: 'x' },
+      fotos: [null, 'abc', { id: 7 }, { id: 'ft_ok', largura: 'x' }],
+      manutencao: { descricao: { a: 1 }, fotos: 'abc' },
+      voltaPelaSaidaSeguinte: 'sim'
+    });
+    assert.equal(lixo.outros, '');
+    assert.deepEqual(lixo.fotos, [{ id: 'ft_ok', largura: 'x', altura: 0 }]);
+    assert.deepEqual(lixo.manutencao.fotos, []);
+    assert.equal(typeof lixo.manutencao.descricao, 'string');
+    assert.equal(lixo.voltaPelaSaidaSeguinte, false);
+    assert.equal(normalizarRegistro({ ...novoRegistro(), manutencao: 'abc' }).manutencao, null);
+  });
+});
+
+describe('cofre de fotos', () => {
+  const foto = (id, extra = {}) => ({
+    id,
+    bytes: new Uint8Array([1, 2, 3]).buffer,
+    tipo: 'image/jpeg',
+    largura: 10,
+    altura: 10,
+    registroId: null,
+    enviada: false,
+    criadoEm: Date.now(),
+    ...extra
+  });
+
+  it('com o IndexedDB falhando, guarda na memória e nenhuma foto some', async () => {
+    const quebrado = {
+      open() {
+        throw new Error('Connection to Indexed Database server lost');
+      }
+    };
+    const cofre = criarCofreDeFotos({ indexedDB: quebrado });
+    await cofre.guardar(foto('ft_1'));
+    assert.ok(await cofre.ler('ft_1'));
+    assert.deepEqual(await cofre.vincular(['ft_1', 'ft_sumiu'], 'ck_1'), ['ft_sumiu'], 'avisa a que não está aqui');
+    assert.deepEqual(
+      (await cofre.pendentes()).map(item => item.id),
+      ['ft_1']
+    );
+  });
+
+  it('marca de exclusão fica na fila "apagar", sem a imagem; arrumação respeita rascunho aberto', async () => {
+    const cofre = criarCofreDeFotos({ indexedDB: null });
+    await cofre.guardar(foto('ft_x', { registroId: 'ck', enviada: true }));
+    await cofre.marcarParaApagar('ft_x');
+    const [marca] = await cofre.aApagar();
+    assert.equal(marca.id, 'ft_x');
+    assert.equal(marca.bytes, undefined);
+    assert.deepEqual(await cofre.pendentes(), []);
+    const velha = Date.now() - 3 * 24 * 60 * 60 * 1000;
+    await cofre.guardar(foto('ft_rascunho_aberto', { criadoEm: velha }));
+    await cofre.guardar(foto('ft_rascunho_abandonado', { criadoEm: velha }));
+    await cofre.arrumar(Date.now(), new Set(['ft_rascunho_aberto']));
+    assert.ok(await cofre.ler('ft_rascunho_aberto'));
+    assert.equal(await cofre.ler('ft_rascunho_abandonado'), null);
+  });
+});
+
+describe('fotos na sincronização', () => {
+  const montar = () => {
+    banco.limpar();
+    const falso = criarFirestoreFalso();
+    const nuvem = criarNuvem({ projeto: 'projeto-teste', requisitar: falso.requisitar });
+    const fotos = criarCofreDeFotos({ indexedDB: null });
+    const ambiente = { navigator: { onLine: true }, setTimeout: () => 0, clearTimeout: () => {} };
+    return { falso, fotos, sync: criarSincronizacao({ nuvem, fotos, ambiente }) };
+  };
+  const foto = id => ({
+    id,
+    bytes: new Uint8Array([9, 9]).buffer,
+    tipo: 'image/jpeg',
+    largura: 1,
+    altura: 1,
+    criadoEm: 1
+  });
+
+  it('a foto só sobe depois que o checklist dela chegou à nuvem', async () => {
+    const { falso, fotos, sync } = montar();
+    falso.estado.recusar = () => true; // o checklist é recusado
+    await fotos.guardar(foto('ft_1'));
+    const registro = novoRegistro({ fotos: [{ id: 'ft_1' }] });
+    await fotos.vincular(['ft_1'], registro.id);
+    banco.gravar(registro);
+    await sync.agora();
+    assert.equal(falso.fotos.size, 0, 'sem o checklist, a foto espera');
+    falso.estado.recusar = null;
+    await sync.agora();
+    assert.ok(falso.registro(registro.id));
+    assert.ok(falso.fotos.has('ft_1'));
+  });
+
+  it('sem internet na hora de apagar a foto de um excluído, tenta de novo depois', async () => {
+    const { falso, fotos, sync } = montar();
+    await fotos.guardar(foto('ft_1'));
+    const registro = novoRegistro({ fotos: [{ id: 'ft_1' }] });
+    await fotos.vincular(['ft_1'], registro.id);
+    banco.gravar(registro);
+    await sync.agora();
+    assert.ok(falso.fotos.has('ft_1'));
+
+    banco.excluir(registro.id);
+    const requisitarOriginal = falso.requisitar;
+    let derrubar = true;
+    // a rede cai só nas chamadas de apagar foto
+    const nuvem = criarNuvem({
+      projeto: 'projeto-teste',
+      requisitar: (url, opcoes = {}) =>
+        derrubar && opcoes.method === 'DELETE'
+          ? Promise.reject(new TypeError('Failed to fetch'))
+          : requisitarOriginal(url, opcoes)
+    });
+    const ambiente = { navigator: { onLine: true }, setTimeout: () => 0, clearTimeout: () => {} };
+    const sync2 = criarSincronizacao({ nuvem, fotos, ambiente });
+    await sync2.agora();
+    assert.equal(falso.registro(registro.id).excluido, true);
+    assert.ok(falso.fotos.has('ft_1'), 'a foto ainda está lá');
+    assert.equal((await fotos.aApagar()).length, 1, 'e continua na fila');
+    derrubar = false;
+    await sync2.agora();
+    assert.equal(falso.fotos.has('ft_1'), false, 'na volta da internet, saiu');
+    assert.deepEqual(await fotos.aApagar(), []);
+  });
+
+  it('checklist excluído em outro aparelho: as fotos que este aparelho enviou também saem', async () => {
+    const { falso, fotos, sync } = montar();
+    await fotos.guardar(foto('ft_1'));
+    const registro = novoRegistro({ fotos: [{ id: 'ft_1' }] });
+    await fotos.vincular(['ft_1'], registro.id);
+    banco.gravar(registro);
+    await sync.agora();
+    assert.ok(falso.fotos.has('ft_1'));
+    // a administração exclui em outro aparelho (direto na nuvem)
+    const outro = criarNuvem({ projeto: 'projeto-teste', requisitar: falso.requisitar });
+    await outro.enviar({ ...falso.registro(registro.id), excluido: true, atualizadoEm: Date.now() + 1000 });
+    await sync.agora();
+    assert.equal(banco.registro(registro.id).excluido, true);
+    assert.equal(falso.fotos.has('ft_1'), false);
+    assert.equal(await fotos.ler('ft_1'), null);
+  });
+});
+
 describe('revisão / manutenção', () => {
   it('guarda o que foi feito e as fotos; sem texto, não conta', () => {
     const registro = novoRegistro({
@@ -265,6 +414,55 @@ describe('volta pela saída seguinte', () => {
         [150, 210]
       ]
     );
+  });
+
+  it('KM mais de 2.000 acima da saída da viagem em aberto (dígito a mais) não fecha a viagem', () => {
+    const aberta = viagem(45210, '6T08:00');
+    assert.deepEqual(fecharPelaSaidaSeguinte([aberta], viagem(452100, '7T08:00')), []);
+    assert.equal(fecharPelaSaidaSeguinte([aberta], viagem(47210, '7T08:00')).length, 1, '2.000 km ainda fecha');
+  });
+
+  it('dois aparelhos: a volta registrada vale mais que a automática, e a exclusão vale mais que tudo', () => {
+    banco.limpar();
+    const x = novoRegistro({}, as('6T08:00'));
+    const aberta = banco.gravar(x, 1000);
+    banco.confirmarEnvio(aberta.id, aberta.atualizadoEm);
+    assert.deepEqual(
+      [
+        aberta,
+        { ...aberta, kmVolta: 45300, voltaPelaSaidaSeguinte: true },
+        { ...aberta, kmVolta: 45300 },
+        { ...aberta, excluido: true }
+      ].map(pesoDaVersao),
+      [0, 1, 2, 3]
+    );
+
+    // Este aparelho (desatualizado) fechou a viagem pela saída seguinte às 13:00 ...
+    banco.gravar({ ...aberta, kmVolta: 45500, retornoEm: 'depois', voltaPelaSaidaSeguinte: true }, 3000);
+    // ... mas outro já tinha registrado a volta de verdade às 12:58 (versão mais antiga).
+    banco.aplicarRemotos([{ ...aberta, kmVolta: 45392, retornoEm: 'real', atualizadoEm: 2000 }], 9000);
+    assert.equal(banco.registro(aberta.id).kmVolta, 45392, 'a volta real fica');
+    assert.equal(banco.registro(aberta.id).voltaPelaSaidaSeguinte, false);
+    assert.equal(banco.pendentes().includes(aberta.id), false, 'a automática não sobe');
+
+    // Ao contrário: a volta real daqui (pendente) não é desfeita por uma automática mais nova da nuvem.
+    banco.gravar({ ...aberta, kmVolta: 45390, retornoEm: 'aqui' }, 4000);
+    banco.aplicarRemotos([{ ...aberta, kmVolta: 45600, voltaPelaSaidaSeguinte: true, atualizadoEm: 8000 }], 9100);
+    assert.equal(banco.registro(aberta.id).kmVolta, 45390);
+    assert.equal(banco.pendentes().includes(aberta.id), true, 'e continua indo para a nuvem');
+
+    // Exclusão feita em outro aparelho vale mais que qualquer versão daqui.
+    banco.aplicarRemotos([{ ...aberta, excluido: true, atualizadoEm: 1500 }], 9200);
+    assert.equal(banco.registro(aberta.id).excluido, true);
+    assert.equal(banco.pendentes().includes(aberta.id), false);
+
+    // Versão daqui que vale mais e já tinha sido enviada volta para a fila se a nuvem tiver uma pior.
+    const y = banco.gravar(novoRegistro({ kmVolta: 45400 }), 5000);
+    banco.confirmarEnvio(y.id, y.atualizadoEm);
+    banco.aplicarRemotos([{ ...y, kmVolta: null, retornoEm: null, atualizadoEm: 9999 }], 9300);
+    assert.equal(banco.registro(y.id).kmVolta, 45400);
+    assert.equal(banco.pendentes().includes(y.id), true);
+    banco.limpar();
   });
 
   it('não mexe em outra unidade, em excluído nem em KM menor (provável erro de digitação)', () => {
