@@ -25,7 +25,7 @@ Quando o usuário escrever **"vamos continuar"**:
 4. Ao concluir uma etapa, atualize **Estado atual** (com a data) e faça commit + push — o usuário
    autorizou commit e push neste projeto. Adicione arquivos **pelo nome**, nunca `git add -A`.
 
-## Estado atual — 25/11/2026 (manhã)
+## Estado atual — 27/11/2026 (manhã)
 
 **Pronto** (último commit de funcionalidade: `27b6b4e`):
 
@@ -42,17 +42,23 @@ Quando o usuário escrever **"vamos continuar"**:
   nesse site e chegaram ao banco: site e banco estão ligados. O site aponta para
   `checklistveicular-6a274`; os cabeçalhos do `render.yaml` não valem no Static Site (os padrões do
   Render bastam).
-- Testes: 30 de dados (`npm test`) e 6 de navegador em `tests/e2e` (fluxo do motorista nas duas
-  unidades e offline passando em 25/11, na prévia local).
+- **Versão com Marcio e Pedro no ar** desde 27/11 (~10h), por Manual Deploy do usuário. No site
+  publicado passaram em 27/11: `fluxo-motorista.js` nas duas unidades e `offline.js` (os dois
+  bloqueiam o banco).
+- Testes: 30 de dados (`npm test`) e 6 de navegador em `tests/e2e`.
 
-**Pendente — publicação:** o Render **não publicou sozinho** os pushes depois de 24/11 ~12h (o site
-continua com a versão de `2d3e691`, sem Marcio e Pedro). Pedido ao usuário: no painel do site,
-ver em Events se houve deploy com erro; Manual Deploy → Deploy latest commit; e ligar o
-Auto-Deploy (Settings → Build & Deploy). Para saber se a versão nova entrou no ar, comparar o
-`index-*.js` citado na página com o de `dist/index.html` de um build local (o build é determinístico).
+**Publicação no Render — sem Auto-Deploy:** o site foi criado pela opção "Public Git Repository"
+(endereço colado), e nessa opção o Render **não publica sozinho** a cada push (não há webhook do
+Render no GitHub). Cada push precisa de **Manual Deploy → Deploy latest commit** no painel.
+Proposto ao usuário (27/11): criar um **Deploy Hook** (Settings → Deploy Hook) e passar a URL, que
+fica só na memória local (é secreta), para publicar com `curl -X POST <url>` depois de cada push.
+Recriar o site com o GitHub conectado também resolveria, mas muda o endereço. Para saber se a
+versão nova entrou no ar, comparar o `index-*.js` citado na página com o de `dist/index.html` de
+um build local (o build é determinístico).
 
-**Depois do deploy:** testar o site publicado com `TARGET_URL=<endereço>`: `dois-aparelhos-banco-real.js`
-(celular + computador, registro "TESTE AUTOMATICO" excluído no fim) e `offline.js` (service worker).
+**Pendente:** `dois-aparelhos-banco-real.js` no site publicado (celular + computador; o registro
+"TESTE AUTOMATICO" aparece uns 2 min no painel da administração e é excluído no fim) — perguntado
+ao usuário em 27/11 se pode rodar; esperar o OK e um horário sem uso real.
 
 **Banco de produção:** os 2 checklists de teste do usuário (24/11) foram excluídos em 25/11 a pedido
 dele — ficam no banco com `excluido: true` (a marcação que avisa os outros aparelhos) e não
