@@ -25,9 +25,10 @@ Quando o usuário escrever **"vamos continuar"**:
 4. Ao concluir uma etapa, atualize **Estado atual** (com a data) e faça commit + push — o usuário
    autorizou commit e push neste projeto. Adicione arquivos **pelo nome**, nunca `git add -A`.
 
-## Estado atual — 27/11/2026 (fim da manhã)
+## Estado atual — 27/11/2026 (meio-dia)
 
-**Pronto** (último commit de funcionalidade: escolha do motorista por crachá, 27/11):
+**Pronto** (últimos commits de funcionalidade, 27/11: crachás, fotos e volta pela saída seguinte —
+**ainda não publicados no site**, falta o Manual Deploy do usuário):
 
 - Login por código → **"Quem está acessando?"** com os crachás dos motoristas da unidade (e "Outro
   motorista" com nome); a escolha fica na sessão (`sessao.motorista`) até sair, e "Trocar
@@ -35,6 +36,12 @@ Quando o usuário escrever **"vamos continuar"**:
 - Checklist em **3 passos** (veículo/KM, inspeção, revisão; o motorista vem da sessão) com data e
   hora automáticas; viagem "em rota" até o KM de volta; painel da administração (indicadores,
   filtros, ficha, exclusão, exportação CSV). Os 8 componentes do React Bits pedidos, em uso.
+- **Volta pela saída seguinte** (27/11, aprovado pelo usuário): saiu a chave "Já voltei" do passo 1
+  (todo checklist sai em rota). "Registrar retorno" continua; se o motorista esquecer, ao enviar o
+  checklist seguinte do veículo a viagem aberta é fechada com o KM de saída dele
+  (`fecharPelaSaidaSeguinte` em `registros.js`; `retornoEm` = hora desse checklist;
+  `voltaPelaSaidaSeguinte: true`, mostrado na ficha e na coluna "KM de volta informado por" do CSV).
+  Se o KM novo for menor que a saída da viagem aberta, ela não é fechada (aviso no passo 1).
 - **Motoristas por unidade** (25/11): Penedo — Rogerio (padrão) e Marcio; Palmeira — Caique
   (padrão) e Pedro; mais "Outro" nas duas (quem dirigir o carro da outra unidade usa "Outro").
   Fotos de Marcio e Pedro versionadas com autorização do usuário (ficam públicas).
@@ -48,10 +55,12 @@ Quando o usuário escrever **"vamos continuar"**:
 - **Versão com Marcio e Pedro no ar** desde 27/11 (~10h), por Manual Deploy do usuário. No site
   publicado passaram em 27/11: `fluxo-motorista.js` nas duas unidades e `offline.js` (os dois
   bloqueiam o banco).
-- Testes: 38 de dados (`npm test`) e 6 de navegador em `tests/e2e` (todos passando na prévia
-  local em 27/11, com a escolha por crachá e as fotos; o de produção ainda não rodou com foto).
-- **Pendente com o usuário:** (1) publicar o `firestore.rules` novo no console do Firebase;
-  (2) **Manual Deploy** no Render (crachás + fotos); (3) Deploy Hook, se quiser.
+- Testes: 41 de dados (`npm test`) e 6 de navegador em `tests/e2e`, todos passando em 27/11 na
+  prévia local; `dois-aparelhos-banco-real.js` (com foto) passou na prévia local contra o banco
+  real, já com as regras novas.
+- **Pendente com o usuário:** (1) **Manual Deploy** no Render (crachás + fotos + volta pela saída
+  seguinte) — depois, conferir o `index-*.js` e rodar `fluxo-motorista.js` e
+  `dois-aparelhos-banco-real.js` com `TARGET_URL`; (2) Deploy Hook, se quiser.
 
 **Publicação no Render — sem Auto-Deploy:** o site foi criado pela opção "Public Git Repository"
 (endereço colado), e nessa opção o Render **não publica sozinho** a cada push (não há webhook do
@@ -70,9 +79,8 @@ ficaram no banco com `excluido: true`. O usuário achou que o banco "não estava
 
 **Banco de produção:** os 2 checklists de teste do usuário (24/11) foram excluídos em 25/11 a pedido
 dele — ficam no banco com `excluido: true` (a marcação que avisa os outros aparelhos) e não
-aparecem no app. A limpeza de `dois-aparelhos-banco-real.js` faz o mesmo (rodada em 27/11, deixou
-2 registros de teste excluídos; o banco tem 4 documentos, nenhum visível): não apaga documento de
-vez, porque um documento apagado nunca chega aos aparelhos que já tinham baixado o registro, que
+aparecem no app. A limpeza de `dois-aparelhos-banco-real.js` faz o mesmo (rodada 2 vezes em 27/11;
+o banco tem 6 checklists, nenhum visível, e nenhuma foto): não apaga documento de vez, porque um documento apagado nunca chega aos aparelhos que já tinham baixado o registro, que
 ficaria preso neles.
 
 **Fotos em "Outros" (27/11, pedido do usuário):** até 4 por checklist, reduzidas no aparelho
@@ -80,16 +88,9 @@ ficaria preso neles.
 sincronização depois do checklist para a coleção **`fotos`** (um documento por foto, bytes em
 `dados`); o registro guarda só `fotos: [{ id, largura, altura }]`. A ficha baixa a foto ao abrir
 (`src/componentes/Fotos.jsx`). Excluir o checklist apaga as fotos dele (as regras só deixam
-apagar foto de checklist já excluído). **Depende de o usuário publicar o `firestore.rules` novo**
-no console — sem isso a foto é recusada (o checklist sobe normalmente; o indicador mostra erro).
-Depois de publicar as regras e fazer o deploy: rodar `dois-aparelhos-banco-real.js` no site (agora
-com foto: confere que a administração vê a foto e que a exclusão a tira do banco).
-
-**Perguntar ao usuário:** KM de volta — ele sugeriu usar o KM de saída do dia seguinte. Proposto:
-manter "Registrar retorno" (mostra o carro na base e revela uso sem checklist, pela diferença entre
-o KM de volta e a saída seguinte) e, se a viagem anterior ainda estiver "em rota" ao enviar um
-checklist novo, fechá-la sozinho com o KM de saída novo, marcada como "volta pela saída seguinte";
-talvez tirar a chave "Já voltei" do passo 1. **Esperar a resposta antes de mexer.**
+apagar foto de checklist já excluído). **Regras novas publicadas pelo usuário em 27/11** (conferido:
+GET em `fotos/<id inexistente>` dá 404, outra coleção dá 403). Se o `firestore.rules` mudar de novo,
+o usuário precisa publicar no console.
 
 **Sem versionar:** `img/separacao-lote-2026-11-24_1633.pdf` (não é deste app) — **não fazer commit**.
 `preparar-fotos` só converte imagens, então ele não entra no site.

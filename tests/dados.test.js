@@ -24,6 +24,7 @@ import { apagarRascunho, gravarRascunho, lerRascunho, novoRascunho } from '../sr
 import {
   criarRegistro,
   emRota,
+  fecharPelaSaidaSeguinte,
   kmRodados,
   registrarRetorno,
   resumoDosItens,
@@ -165,6 +166,48 @@ describe('motoristas', () => {
     assert.equal(lerRascunho(palmeira), null, 'cada unidade tem o seu rascunho');
     gravarRascunho(penedo, { ...rascunho, em: Date.now() - 13 * 60 * 60 * 1000 });
     assert.equal(lerRascunho(penedo), null, 'rascunho com mais de 12 h é descartado');
+  });
+});
+
+describe('volta pela saída seguinte', () => {
+  const as = hora => new Date(`2026-11-2${hora}:00-03:00`);
+  const viagem = (km, quando, extra = {}) => novoRegistro({ kmSaida: km, ...extra }, as(quando));
+
+  it('viagem sem KM de volta é fechada com o KM de saída do checklist seguinte', () => {
+    const ontem = viagem(45210, '6T08:00');
+    const concluida = viagem(45000, '5T08:00', { kmVolta: 45100 });
+    const hoje = viagem(45390, '7T07:30');
+    const [fechada, ...resto] = fecharPelaSaidaSeguinte([ontem, concluida], hoje);
+    assert.equal(resto.length, 0, 'só a que estava em rota');
+    assert.equal(fechada.id, ontem.id);
+    assert.equal(fechada.kmVolta, 45390);
+    assert.equal(fechada.retornoEm, hoje.preenchidoEm);
+    assert.equal(fechada.voltaPelaSaidaSeguinte, true);
+    assert.equal(kmRodados(fechada), 180);
+    assert.equal(emRota(fechada), false);
+  });
+
+  it('duas viagens esquecidas: cada uma fecha com a saída seguinte a ela', () => {
+    const primeira = viagem(100, '5T08:00');
+    const segunda = viagem(150, '6T08:00');
+    const nova = viagem(210, '7T08:00');
+    const fechadas = fecharPelaSaidaSeguinte([segunda, primeira], nova);
+    assert.deepEqual(
+      fechadas.map(registro => [registro.kmSaida, registro.kmVolta]),
+      [
+        [100, 150],
+        [150, 210]
+      ]
+    );
+  });
+
+  it('não mexe em outra unidade, em excluído nem em KM menor (provável erro de digitação)', () => {
+    const palmeira = { ...viagem(500, '6T08:00'), unidade: 'palmeira' };
+    const excluida = { ...viagem(600, '6T09:00'), excluido: true };
+    assert.deepEqual(fecharPelaSaidaSeguinte([palmeira, excluida], viagem(700, '7T08:00')), []);
+    const aberta = viagem(45210, '6T08:00');
+    assert.deepEqual(fecharPelaSaidaSeguinte([aberta], viagem(4521, '7T08:00')), [], 'KM menor: continua em rota');
+    assert.deepEqual(fecharPelaSaidaSeguinte([], viagem(1, '7T08:00')), [], 'sem viagem anterior');
   });
 });
 

@@ -10,10 +10,18 @@ import { ITENS, nomeDoVeiculo } from '../config/frota.js';
 import { nomeDoMotorista } from '../lib/acesso.js';
 import { banco } from '../lib/banco.js';
 import { cofreDeFotos } from '../lib/fotosDoChecklist.js';
-import { km, limparNome, numero, paraKm } from '../lib/formato.js';
+import { dataHora, limparNome, numero, paraKm } from '../lib/formato.js';
 import { useBanco } from '../lib/ganchos.js';
 import { apagarRascunho, gravarRascunho, lerRascunho, novoRascunho } from '../lib/rascunho.js';
-import { criarRegistro, piorSituacao, resumoDosItens, ultimoKm, validarChecklist } from '../lib/registros.js';
+import {
+  criarRegistro,
+  emRota,
+  fecharPelaSaidaSeguinte,
+  piorSituacao,
+  resumoDosItens,
+  ultimoKm,
+  validarChecklist
+} from '../lib/registros.js';
 import CometDial from '../reactbits/CometDial.jsx';
 import SloshGauge from '../reactbits/SloshGauge.jsx';
 
@@ -32,14 +40,54 @@ const deslizar = {
   sair: direcao => ({ opacity: 0, x: direcao * -46 })
 };
 
+/**
+ * Viagem anterior que ficou "em rota" (sem KM de volta): avisa que este checklist vai fechá-la com
+ * o KM de saída de agora — ou que não vai, se o KM digitado for menor que o de saída dela.
+ */
+function AvisoViagemAberta({ abertas, fechadas }) {
+  if (abertas.length === 0) return null;
+  const ficam = abertas.filter(aberta => !fechadas.some(fechada => fechada.id === aberta.id));
+  if (ficam.length > 0) {
+    const viagem = ficam[0];
+    return (
+      <div className="aviso aviso--erro aviso--viagem-aberta">
+        <Icone nome="alerta" tamanho={18} />
+        <p>
+          A viagem de <strong>{viagem.motoristaNome}</strong> ({dataHora(viagem.preenchidoEm)}) saiu com{' '}
+          <strong className="mono">{numero(viagem.kmSaida)}</strong> km e ficou sem KM de volta. O KM de saída digitado
+          é menor, então ela continua em rota. Confira o painel.
+        </p>
+      </div>
+    );
+  }
+  const viagem = abertas[0];
+  return (
+    <div className="aviso aviso--destaque aviso--viagem-aberta">
+      <Icone nome="rota" tamanho={18} />
+      <p>
+        {abertas.length === 1 ? (
+          <>
+            A viagem de <strong>{viagem.motoristaNome}</strong> ({dataHora(viagem.preenchidoEm)}, saída{' '}
+            <span className="mono">{numero(viagem.kmSaida)}</span> km) ficou sem KM de volta. Ao enviar este checklist,
+            ela é fechada com o <strong>KM de saída de agora</strong>.
+          </>
+        ) : (
+          <>
+            {abertas.length} viagens ficaram sem KM de volta. Ao enviar este checklist, cada uma é fechada com o{' '}
+            <strong>KM da saída seguinte</strong>.
+          </>
+        )}
+      </p>
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /* Passo 1 — Veículo e quilometragem                                   */
 /* ------------------------------------------------------------------ */
 
-function PassoVeiculo({ unidade, motoristaNome, dados, mudar, erros, ultimo }) {
+function PassoVeiculo({ unidade, motoristaNome, dados, mudar, erros, ultimo, abertas, fechadas }) {
   const saida = paraKm(dados.kmSaida);
-  const volta = dados.informarVolta ? paraKm(dados.kmVolta) : null;
-  const rodados = saida !== null && volta !== null && volta >= saida ? volta - saida : null;
   const abaixoDoUltimo = saida !== null && ultimo !== null && saida < ultimo;
   return (
     <div className="passo passo--dividido">
@@ -82,41 +130,7 @@ function PassoVeiculo({ unidade, motoristaNome, dados, mudar, erros, ultimo }) {
           </button>
         ) : null}
 
-        <label className="alternar">
-          <input
-            type="checkbox"
-            checked={dados.informarVolta}
-            onChange={evento => mudar({ informarVolta: evento.target.checked })}
-          />
-          <span className="alternar__trilho" aria-hidden="true" />
-          <span className="alternar__texto">
-            <strong>Já voltei: informar o KM de volta agora</strong>
-            <small>Vai sair agora? Deixe desligado e registre o KM de volta quando retornar.</small>
-          </span>
-        </label>
-
-        <AnimatePresence initial={false}>
-          {dados.informarVolta ? (
-            <motion.div
-              key="volta"
-              className="volta"
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.28 }}
-            >
-              <CampoKm
-                rotulo="KM de volta"
-                valor={dados.kmVolta}
-                aoMudar={valor => mudar({ kmVolta: valor })}
-                erro={erros.kmVolta}
-                dica={
-                  rodados !== null ? `Distância percorrida: ${km(rodados)}` : 'KM que aparece no painel ao retornar.'
-                }
-              />
-            </motion.div>
-          ) : null}
-        </AnimatePresence>
+        <AvisoViagemAberta abertas={abertas} fechadas={fechadas} />
       </div>
     </div>
   );
@@ -212,7 +226,7 @@ function PassoInspecao({ unidade, dados, mudar, mudarFotos, erro, cobrar }) {
 /* Passo 3 — Revisão e envio                                           */
 /* ------------------------------------------------------------------ */
 
-function PassoRevisao({ unidade, motoristaNome, dados, erros }) {
+function PassoRevisao({ unidade, motoristaNome, dados, erros, abertas, fechadas }) {
   const resumo = resumoDosItens(dados.itens);
   const [mostrado, setMostrado] = useState(0);
   useEffect(() => {
@@ -233,7 +247,6 @@ function PassoRevisao({ unidade, motoristaNome, dados, erros }) {
         ? 'Precisa de atenção'
         : 'Em ordem, com ressalvas';
   const saida = paraKm(dados.kmSaida);
-  const volta = dados.informarVolta ? paraKm(dados.kmVolta) : null;
   const pendencias = Object.values(erros);
 
   return (
@@ -286,11 +299,7 @@ function PassoRevisao({ unidade, motoristaNome, dados, erros }) {
           </div>
           <div>
             <dt>KM de volta</dt>
-            <dd className={volta === null ? undefined : 'mono'}>{volta === null ? 'Ao retornar' : numero(volta)}</dd>
-          </div>
-          <div>
-            <dt>KM rodados</dt>
-            <dd className="mono">{saida !== null && volta !== null && volta >= saida ? km(volta - saida) : '—'}</dd>
+            <dd>Ao retornar</dd>
           </div>
         </dl>
 
@@ -308,14 +317,18 @@ function PassoRevisao({ unidade, motoristaNome, dados, erros }) {
               </ul>
             </div>
           </div>
-        ) : volta === null ? (
-          <div className="aviso">
-            <Icone nome="rota" tamanho={18} />
-            <p>
-              Depois do envio o veículo fica <strong>em rota</strong>. Ao voltar, abra o app e registre o KM de volta.
-            </p>
-          </div>
-        ) : null}
+        ) : (
+          <>
+            <AvisoViagemAberta abertas={abertas} fechadas={fechadas} />
+            <div className="aviso">
+              <Icone nome="rota" tamanho={18} />
+              <p>
+                Depois do envio o veículo fica <strong>em rota</strong>. Ao voltar, abra o app e registre o KM de volta.
+                Se esquecer, o próximo checklist fecha a viagem com o KM de saída dele.
+              </p>
+            </div>
+          </>
+        )}
 
         <h3 className="detalhe__titulo">Itens inspecionados</h3>
         <ResumoDosItens itens={dados.itens} />
@@ -371,29 +384,33 @@ export default function Checklist({ unidade, motorista, formularioId, passo, aoM
 
   const ultimo = useMemo(() => ultimoKm(registros, unidade.id), [registros, unidade.id]);
   const saida = paraKm(dados.kmSaida);
-  const volta = dados.informarVolta ? paraKm(dados.kmVolta) : null;
   const nome = nomeDoMotorista(motorista.id, motorista.nomeOutro);
+
+  // Viagens desta unidade que ficaram sem KM de volta, e quais o envio vai fechar.
+  const abertas = useMemo(
+    () => registros.filter(registro => registro.unidade === unidade.id && emRota(registro)),
+    [registros, unidade.id]
+  );
+  const fechadas = useMemo(() => {
+    if (abertas.length === 0) return [];
+    if (saida === null) return abertas; // ainda sem KM: o aviso fala do caso normal
+    const agora = new Date().toISOString();
+    return fecharPelaSaidaSeguinte(registros, { id: '', unidade: unidade.id, kmSaida: saida, preenchidoEm: agora });
+  }, [abertas, registros, unidade.id, saida]);
 
   const validacao = useMemo(() => {
     const resultado = validarChecklist({
       motoristaId: motorista.id,
       motoristaNome: nome,
       kmSaida: saida,
-      kmVolta: volta,
+      kmVolta: null,
       itens: dados.itens
     });
-    const erros = { ...resultado.erros };
-    if (dados.informarVolta && volta === null && !erros.kmVolta) {
-      erros.kmVolta = 'Informe o KM de volta ou desligue a opção "Já voltei".';
-    }
-    return { erros, ok: Object.keys(erros).length === 0 };
-  }, [dados, motorista.id, nome, saida, volta]);
+    return { erros: resultado.erros, ok: resultado.ok };
+  }, [dados.itens, motorista.id, nome, saida]);
 
   const errosDoPasso = [
-    {
-      ...(validacao.erros.kmSaida ? { kmSaida: validacao.erros.kmSaida } : {}),
-      ...(validacao.erros.kmVolta ? { kmVolta: validacao.erros.kmVolta } : {})
-    },
+    validacao.erros.kmSaida ? { kmSaida: validacao.erros.kmSaida } : {},
     validacao.erros.itens ? { itens: validacao.erros.itens } : {},
     validacao.erros
   ];
@@ -406,7 +423,7 @@ export default function Checklist({ unidade, motorista, formularioId, passo, aoM
       motoristaId: motorista.id,
       motoristaNome: limparNome(nome),
       kmSaida: saida,
-      kmVolta: volta,
+      kmVolta: null,
       itens: dados.itens,
       outros: dados.outros,
       fotos: dados.fotos
@@ -418,6 +435,8 @@ export default function Checklist({ unidade, motorista, formularioId, passo, aoM
         registro.id
       )
       .catch(() => {});
+    // Viagem anterior que ficou sem KM de volta: fecha com o KM de saída deste checklist.
+    for (const viagem of fecharPelaSaidaSeguinte(registros, registro)) banco.gravar(viagem);
     const salvo = banco.gravar(registro);
     apagarRascunho(unidade);
     navigator.vibrate?.([40, 60, 40]);
@@ -498,6 +517,8 @@ export default function Checklist({ unidade, motorista, formularioId, passo, aoM
                 mudar={mudar}
                 erros={mostrar(0)}
                 ultimo={ultimo}
+                abertas={abertas}
+                fechadas={fechadas}
               />
             ) : passo === 1 ? (
               <PassoInspecao
@@ -509,7 +530,14 @@ export default function Checklist({ unidade, motorista, formularioId, passo, aoM
                 cobrar={Boolean(tentou[1])}
               />
             ) : (
-              <PassoRevisao unidade={unidade} motoristaNome={nome} dados={dados} erros={mostrar(2)} />
+              <PassoRevisao
+                unidade={unidade}
+                motoristaNome={nome}
+                dados={dados}
+                erros={mostrar(2)}
+                abertas={abertas}
+                fechadas={fechadas}
+              />
             )}
           </motion.div>
         </AnimatePresence>

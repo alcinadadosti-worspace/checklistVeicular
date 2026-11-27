@@ -86,6 +86,35 @@ export function registrarRetorno(registro, kmVolta, agora = new Date()) {
 
 export const emRota = registro => !registro.excluido && (registro.kmVolta === null || registro.kmVolta === undefined);
 
+/**
+ * "A volta é a saída seguinte": viagens da unidade que ficaram em rota (o motorista não registrou
+ * a volta) são fechadas com o KM de saída do checklist seguinte a cada uma — normalmente o que está
+ * sendo enviado agora. A data/hora da volta passa a ser a desse checklist e o registro fica marcado
+ * com `voltaPelaSaidaSeguinte`. Não fecha se esse KM for menor que o de saída da viagem (provável
+ * erro de digitação: melhor a administração ver a viagem em aberto).
+ * Devolve só os registros alterados, para gravar.
+ */
+export function fecharPelaSaidaSeguinte(registros, novo) {
+  const quando = registro => Date.parse(registro.preenchidoEm) || 0;
+  const linha = registros
+    .filter(registro => registro.unidade === novo.unidade && !registro.excluido && registro.id !== novo.id)
+    .concat(novo)
+    .sort((a, b) => quando(a) - quando(b) || (a.criadoEm || 0) - (b.criadoEm || 0));
+  const fechadas = [];
+  linha.forEach((registro, indice) => {
+    const seguinte = linha[indice + 1];
+    if (registro === novo || !seguinte || !emRota(registro)) return;
+    if (!Number.isInteger(seguinte.kmSaida) || seguinte.kmSaida < registro.kmSaida) return;
+    fechadas.push({
+      ...registro,
+      kmVolta: seguinte.kmSaida,
+      retornoEm: seguinte.preenchidoEm,
+      voltaPelaSaidaSeguinte: true
+    });
+  });
+  return fechadas;
+}
+
 export const kmRodados = registro =>
   registro.kmVolta === null || registro.kmVolta === undefined ? null : registro.kmVolta - registro.kmSaida;
 

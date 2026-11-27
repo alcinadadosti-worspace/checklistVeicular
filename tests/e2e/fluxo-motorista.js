@@ -315,11 +315,84 @@ const conferir = (descricao, condicao, detalhe = '') => {
       `${guardada.length} foto(s); ${g.largura}×${g.altura}; ${Math.round((g.bytes || 0) / 1024)} KB`
     );
 
+    // volta pela saída seguinte: a viagem sem KM de volta é fechada pelo checklist seguinte
+    await page.keyboard.press('Escape'); // fecha a ficha
+    await page.waitForTimeout(600);
+    const comecarChecklist = async km => {
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await tocar('.inicio__acoes .botao');
+      await page.waitForSelector('.campo-km');
+      await page.locator('.campo-km__entrada').first().fill(String(km));
+      await page.waitForTimeout(500);
+    };
+    const terminarChecklist = async () => {
+      await continuar();
+      await page.waitForFunction(() => document.querySelectorAll('.itens .item').length === 7);
+      await page.waitForTimeout(400);
+      for (const item of await page.locator('.itens .item').all())
+        await item.locator('.opcao[data-tipo="bom"]').click();
+      await continuar();
+      await page.waitForSelector('.passo--revisao');
+      await page.waitForTimeout(600);
+    };
+    const enviarEVoltar = async () => {
+      await continuar();
+      await page.waitForSelector('.tela--sucesso', { timeout: 15000 });
+      await page.waitForTimeout(1500);
+      await tocar('.sucesso .botao--g');
+      await page.waitForSelector('.tela--inicio');
+      await page.waitForTimeout(1500);
+    };
+    await comecarChecklist(45400);
+    conferir('sem viagem em aberto, não há aviso', (await page.locator('.aviso--viagem-aberta').count()) === 0);
+    await terminarChecklist();
+    await enviarEVoltar(); // fica em rota e o motorista "esquece" de registrar a volta
+    conferir('viagem esquecida em rota', (await page.locator('.viagem').count()) === 1);
+
+    await comecarChecklist(45300); // digitado errado: menor que a saída da viagem em aberto
+    conferir(
+      'KM menor que o da viagem em aberto: avisa que ela continua em rota',
+      /continua em rota/.test((await page.locator('.aviso--viagem-aberta').textContent()) || '')
+    );
+    await page.locator('.campo-km__entrada').first().fill('45600');
+    await page.waitForTimeout(500);
+    conferir(
+      'passo 1 avisa que a viagem esquecida será fechada com o KM de agora',
+      /fechada com o KM de saída de agora/.test((await page.locator('.aviso--viagem-aberta').textContent()) || '')
+    );
+    await page.locator('.aviso--viagem-aberta').scrollIntoViewIfNeeded();
+    await foto('volta-pela-saida-seguinte');
+    await terminarChecklist();
+    conferir('revisão também avisa', (await page.locator('.passo--revisao .aviso--viagem-aberta').count()) === 1);
+    await enviarEVoltar();
+    conferir('só a viagem nova fica em rota', (await page.locator('.viagem').count()) === 1);
+
     const registros = await page.evaluate(() =>
       Object.values(JSON.parse(localStorage.getItem('clv.dados.v1') || '{"registros":{}}').registros)
     );
-    const r = registros[0] || {};
-    conferir('um registro gravado no aparelho', registros.length === 1, `${registros.length}`);
+    const porKm = km => registros.find(registro => registro.kmSaida === km) || {};
+    const esquecida = porKm(45400);
+    const seguinte = porKm(45600);
+    conferir(
+      'viagem esquecida fechada pela saída seguinte',
+      esquecida.kmVolta === 45600 &&
+        esquecida.voltaPelaSaidaSeguinte === true &&
+        esquecida.retornoEm === seguinte.preenchidoEm &&
+        seguinte.kmVolta === null,
+      `${esquecida.kmSaida}->${esquecida.kmVolta}`
+    );
+    await page.locator('.historico .linha-registro button', { hasText: '45.400' }).first().click();
+    await page.waitForSelector('.folha');
+    await page.waitForTimeout(700);
+    conferir(
+      'ficha mostra "Volta pela saída seguinte"',
+      (await page.locator('.folha .selo', { hasText: 'Volta pela saída seguinte' }).count()) === 1
+    );
+    await foto('ficha-volta-pela-saida-seguinte');
+    await page.keyboard.press('Escape');
+
+    const r = porKm(45210);
+    conferir('três registros gravados no aparelho', registros.length === 3, `${registros.length}`);
     conferir(
       'dados do registro',
       r.motoristaNome === SEGUNDO &&

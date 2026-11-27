@@ -15,8 +15,6 @@ export function novoRascunho() {
     em: Date.now(),
     dados: {
       kmSaida: '',
-      kmVolta: '',
-      informarVolta: false,
       itens: {},
       outros: '',
       fotos: [] // [{ id, largura, altura }]; a imagem fica no cofre de fotos do aparelho

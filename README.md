@@ -16,13 +16,15 @@ automaticamente. A administração acompanha as duas unidades num painel.
    Caique ou Pedro) ou em _Outro motorista_ (digitando o nome). O app guarda a escolha até a pessoa
    sair; na tela inicial, **Trocar motorista** muda sem digitar o código de novo.
 3. Toca em **Iniciar checklist**, que tem 3 passos:
-   - **Veículo** — informa o KM de saída. Se já voltou, liga "Já voltei" e informa também o KM de volta.
+   - **Veículo** — informa o KM de saída.
    - **Inspeção** — marca cada item como _Bom_, _Ruim_ ou _Faltante / Não funciona_ e, se quiser,
      escreve algo em _Outros_. Também pode anexar **até 4 fotos** (câmera ou galeria): o app reduz
      cada foto antes de guardar, e a administração vê na ficha do checklist.
    - **Revisão** — confere e envia. A data e a hora são gravadas pelo app nesse momento.
-4. Se saiu sem informar o KM de volta, o veículo fica **em rota**; ao retornar, abre o app e toca em
-   **Registrar retorno** (a data e a hora do retorno também são automáticas).
+4. Depois do envio o veículo fica **em rota**. Ao retornar, o motorista abre o app e toca em
+   **Registrar retorno** (a data e a hora do retorno também são automáticas). Se esquecer, o próximo
+   checklist do veículo fecha a viagem com o KM de saída dele, e a ficha mostra "Volta pela saída
+   seguinte" (a hora da volta fica sendo a desse checklist).
 
 A administração entra com o código dela e vê: veículos em rota, checklists por período, itens com
 apontamento, quilômetros rodados, a ficha de cada checklist, exportação para planilha (CSV) e exclusão.

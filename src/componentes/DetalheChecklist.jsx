@@ -46,6 +46,12 @@ export default function DetalheChecklist({ registro, pendente = false }) {
             Tudo em ordem
           </span>
         )}
+        {registro.voltaPelaSaidaSeguinte ? (
+          <span className="selo selo--pendente" title="O motorista não registrou a volta">
+            <Icone nome="rota" tamanho={14} />
+            Volta pela saída seguinte
+          </span>
+        ) : null}
         {pendente ? (
           <span className="selo selo--pendente">
             <Icone nome="nuvem" tamanho={14} />
@@ -88,11 +94,13 @@ export default function DetalheChecklist({ registro, pendente = false }) {
           <dd>
             {rodando
               ? 'Ainda em rota'
-              : `${dataHora(registro.retornoEm)}${
-                  registro.retornoEm !== registro.preenchidoEm
-                    ? ` (${duracao(registro.preenchidoEm, registro.retornoEm)})`
-                    : ''
-                }`}
+              : registro.voltaPelaSaidaSeguinte
+                ? `Não registrado · KM da saída seguinte (${dataHora(registro.retornoEm)})`
+                : `${dataHora(registro.retornoEm)}${
+                    registro.retornoEm !== registro.preenchidoEm
+                      ? ` (${duracao(registro.preenchidoEm, registro.retornoEm)})`
+                      : ''
+                  }`}
           </dd>
         </div>
       </dl>

@@ -110,7 +110,7 @@ export default function Inicio({ unidade, motorista, aoIniciar, aoTrocarMotorist
             </h1>
             <p className="texto-2">
               {emAndamento.length > 0
-                ? 'Há uma viagem em andamento. Ao voltar, registre o KM de retorno.'
+                ? 'Há uma viagem em andamento. Ao voltar, registre o KM de volta (se esquecer, o próximo checklist fecha a viagem).'
                 : 'Antes de sair, faça o checklist do veículo. Leva menos de um minuto.'}
             </p>
 
