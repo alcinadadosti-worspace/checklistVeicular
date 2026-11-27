@@ -145,6 +145,6 @@ CODIGOS_TESTE="penedo=…,palmeira=…,admin=…" node ~/.claude/skills/playwrig
 
 Sem navegador, contra o banco real: `node tests/integracao/firestore-real.mjs`. As capturas vão
 para a pasta temporária do sistema (`checklist-e2e`) ou para `SAIDA`. Todos aceitam
-`TARGET_URL` (padrão `http://localhost:4173`) para rodar contra o site publicado. Os dois testes de
-produção passaram em 24/11 numa versão anterior; a limpeza nova de `dois-aparelhos-banco-real.js`
-(25/11) ainda não foi rodada — confira o banco depois de rodá-lo.
+`TARGET_URL` (padrão `http://localhost:4173`) para rodar contra o site publicado.
+`dois-aparelhos-banco-real.js`, `fluxo-motorista.js` e `offline.js` passaram no site publicado em
+27/11; depois de rodar um teste de produção, confira o banco.
