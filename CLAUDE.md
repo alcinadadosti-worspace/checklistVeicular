@@ -58,6 +58,14 @@ Quando o usuário escrever **"vamos continuar"**:
 - Testes: 41 de dados (`npm test`) e 6 de navegador em `tests/e2e`, todos passando em 27/11 na
   prévia local; `dois-aparelhos-banco-real.js` (com foto) passou na prévia local contra o banco
   real, já com as regras novas.
+- **Revisão/manutenção na inspeção** (27/11, pedido do usuário; **não publicado**): botão
+  "Registrar revisão ou manutenção" no passo Inspeção abre um quadro com "O que foi feito" e até 4
+  fotos; vai no registro como `manutencao: { descricao, fotos }` (ou null; sem texto não conta, e
+  foto sem texto é cobrada). Fotos na mesma coleção `fotos` (`fotosDoRegistro` junta as duas listas
+  para envio e exclusão). Ficha e lista com selo; filtro "Com manutenção" e busca na administração;
+  colunas "Revisão/manutenção" e "Fotos da manutenção" no CSV. Regras do Firestore sem mudança.
+- **Carros 3D com baú fechado** sobre a caçamba (27/11, as duas picapes da frota usam; campo `bau`
+  das fichas em `scripts/gerar-modelos.mjs`; modelos com ~410 KB). **Não publicado.**
 - **Celular e tablet** (27/11, pedido "portabilidade"; **ainda não publicado** — falta Manual
   Deploy): app instalável (manifesto com `orientation: any`, ícones PNG em `public/icones/` por
   `npm run icones`, `apple-touch-icon`; Chrome confirma instalável), botão "Instalar o app" no login
@@ -69,7 +77,7 @@ Quando o usuário escrever **"vamos continuar"**:
   com 4 desde a saída do passo "Motorista"). Toques ≥ 40 px (indicador da nuvem, atalhos, filtros).
 - **Testado no site publicado em 27/11 (~11h45):** `fluxo-motorista.js` (Penedo e Palmeira),
   `offline.js`, `navegacao-voltar.js` e `dois-aparelhos-banco-real.js` com foto — tudo certo.
-- **Pendente com o usuário:** **Manual Deploy** (celular e tablet); depois, rodar no site
+- **Pendente com o usuário:** **Manual Deploy** (celular e tablet, baú, manutenção); depois, rodar no site
   `aparelhos.js`, `instalacao.js` e `fluxo-motorista.js` com `TARGET_URL`. Deploy Hook (opcional) —
   sem ele, cada push precisa de Manual Deploy.
 

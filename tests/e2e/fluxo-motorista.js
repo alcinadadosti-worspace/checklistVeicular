@@ -204,8 +204,8 @@ const conferir = (descricao, condicao, detalhe = '') => {
         }, rotulo),
         'base64'
       );
-    const entradaDeFoto = '.campo-fotos input[type="file"]';
-    await page.locator('.campo-fotos').scrollIntoViewIfNeeded();
+    const entradaDeFoto = '.campo--outros .campo-fotos input[type="file"]';
+    await page.locator('.campo--outros .campo-fotos').scrollIntoViewIfNeeded();
     conferir(
       'botão de foto aparece em "Outros"',
       (await page.locator('.campo--outros .foto--adicionar').count()) === 1
@@ -215,7 +215,7 @@ const conferir = (descricao, condicao, detalhe = '') => {
       mimeType: 'image/jpeg',
       buffer: await fotoDeCelular('PNEU')
     });
-    await page.waitForFunction(() => document.querySelectorAll('.campo-fotos .foto img').length === 1, null, {
+    await page.waitForFunction(() => document.querySelectorAll('.campo--outros .foto img').length === 1, null, {
       timeout: 15000
     });
     await page.setInputFiles(entradaDeFoto, {
@@ -223,15 +223,39 @@ const conferir = (descricao, condicao, detalhe = '') => {
       mimeType: 'image/jpeg',
       buffer: await fotoDeCelular('RISCO')
     });
-    await page.waitForFunction(() => document.querySelectorAll('.campo-fotos .foto img').length === 2, null, {
+    await page.waitForFunction(() => document.querySelectorAll('.campo--outros .foto img').length === 2, null, {
       timeout: 15000
     });
     await page.waitForTimeout(600);
     await foto('passo2-fotos');
-    await tocar('.campo-fotos .foto__remover >> nth=1');
-    await page.waitForFunction(() => document.querySelectorAll('.campo-fotos .foto img').length === 1);
+    await tocar('.campo--outros .foto__remover >> nth=1');
+    await page.waitForFunction(() => document.querySelectorAll('.campo--outros .foto img').length === 1);
     conferir('foto anexada e outra removida', true);
-    await page.waitForTimeout(900);
+
+    // revisão/manutenção: texto do que foi feito + foto do serviço
+    await page.locator('.manutencao-abrir').scrollIntoViewIfNeeded();
+    await tocar('.manutencao-abrir');
+    await page.waitForSelector('.manutencao #manutencao-texto');
+    await page.setInputFiles('.manutencao .campo-fotos input[type="file"]', {
+      name: 'nota.jpg',
+      mimeType: 'image/jpeg',
+      buffer: await fotoDeCelular('NOTA')
+    });
+    await page.waitForFunction(() => document.querySelectorAll('.manutencao .foto img').length === 1, null, {
+      timeout: 15000
+    });
+    await continuar(); // foto sem dizer o que foi feito: deve ser cobrado
+    await page.waitForTimeout(700);
+    conferir(
+      'manutenção com foto e sem texto é cobrada',
+      (await page.locator('.manutencao .campo__erro').count()) === 1 &&
+        (await page.locator('.trilho li[data-estado="atual"] .trilho__nome').textContent()) === 'Inspeção'
+    );
+    await page.fill('#manutencao-texto', 'Troca de óleo e filtro na oficina do centro.');
+    await page.waitForTimeout(600);
+    await page.locator('.manutencao').scrollIntoViewIfNeeded();
+    await foto('passo2-manutencao');
+    await page.waitForTimeout(600);
     await foto('passo2-completo', { fullPage: true });
 
     // passo 3 — revisão e envio
@@ -239,7 +263,12 @@ const conferir = (descricao, condicao, detalhe = '') => {
     await page.waitForSelector('.passo--revisao');
     await page.waitForTimeout(2200);
     await foto('passo3-revisao', { fullPage: true });
-    conferir('revisão mostra a foto', (await page.locator('.passo--revisao .fotos img').count()) === 1);
+    conferir('revisão mostra as fotos', (await page.locator('.passo--revisao .fotos img').count()) === 2);
+    conferir(
+      'revisão mostra a manutenção',
+      (await page.locator('.passo--revisao .detalhe__titulo--manutencao').count()) === 1 &&
+        /Troca de óleo/.test(await page.locator('.passo--revisao').textContent())
+    );
     await continuar();
     await page.waitForSelector('.tela--sucesso', { timeout: 15000 });
     await page.waitForTimeout(3800);
@@ -280,9 +309,14 @@ const conferir = (descricao, condicao, detalhe = '') => {
     await page.waitForTimeout(900);
     conferir('ficha do checklist abre', (await page.locator('.folha').count()) === 1);
     await foto('detalhe');
-    await page.locator('.folha .fotos .foto__abrir').scrollIntoViewIfNeeded();
-    await page.waitForFunction(() => document.querySelectorAll('.folha .fotos img').length === 1);
-    await page.locator('.folha .fotos .foto__abrir').click();
+    conferir(
+      'ficha mostra a revisão/manutenção',
+      (await page.locator('.folha .selo--manutencao').count()) === 1 &&
+        (await page.locator('.folha .detalhe__titulo--manutencao').count()) === 1
+    );
+    await page.locator('.folha .fotos .foto__abrir').first().scrollIntoViewIfNeeded();
+    await page.waitForFunction(() => document.querySelectorAll('.folha .fotos img').length === 2);
+    await page.locator('.folha .fotos .foto__abrir').first().click();
     await page.waitForSelector('.visor img');
     await page.waitForTimeout(500);
     await foto('foto-tela-cheia');
@@ -305,13 +339,16 @@ const conferir = (descricao, condicao, detalhe = '') => {
     );
     const g = guardada[0] || {};
     conferir(
-      'foto reduzida e guardada no aparelho, na fila de envio',
-      guardada.length === 1 &&
-        g.largura === 1280 &&
-        g.altura === 960 &&
-        g.bytes <= 600 * 1024 &&
-        g.registroId &&
-        !g.enviada,
+      'fotos (Outros e manutenção) reduzidas e guardadas no aparelho, na fila de envio',
+      guardada.length === 2 &&
+        guardada.every(
+          f =>
+            f.largura === 1280 &&
+            f.altura === 960 &&
+            f.bytes <= 600 * 1024 &&
+            f.registroId === g.registroId &&
+            !f.enviada
+        ),
       `${guardada.length} foto(s); ${g.largura}×${g.altura}; ${Math.round((g.bytes || 0) / 1024)} KB`
     );
 
@@ -403,7 +440,9 @@ const conferir = (descricao, condicao, detalhe = '') => {
         r.itens?.pneusTraseiros === 'ruim' &&
         /Barulho/.test(r.outros || '') &&
         r.fotos?.length === 1 &&
-        r.fotos[0].largura === 1280,
+        r.fotos[0].largura === 1280 &&
+        r.manutencao?.descricao === 'Troca de óleo e filtro na oficina do centro.' &&
+        r.manutencao?.fotos?.length === 1,
       `${r.motoristaNome} ${r.kmSaida}->${r.kmVolta}`
     );
     conferir(

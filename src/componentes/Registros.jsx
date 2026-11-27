@@ -151,6 +151,11 @@ export function LinhaRegistro({ registro, aoAbrir, comUnidade = false, pendente 
               OK
             </span>
           )}
+          {registro.manutencao?.descricao ? (
+            <span className="selo selo--manutencao" title="Revisão/manutenção registrada">
+              <Icone nome="chave" tamanho={13} />
+            </span>
+          ) : null}
           {registro.fotos?.length ? (
             <span
               className="selo selo--fotos"

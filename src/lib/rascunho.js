@@ -17,7 +17,8 @@ export function novoRascunho() {
       kmSaida: '',
       itens: {},
       outros: '',
-      fotos: [] // [{ id, largura, altura }]; a imagem fica no cofre de fotos do aparelho
+      fotos: [], // [{ id, largura, altura }]; a imagem fica no cofre de fotos do aparelho
+      manutencao: null // { descricao, fotos } quando o motorista abre "Revisão / manutenção"
     }
   };
 }

@@ -8,6 +8,7 @@
 import { banco } from './banco.js';
 import { cofreDeFotos } from './fotosDoChecklist.js';
 import { nuvem as nuvemPadrao } from './nuvem.js';
+import { fotosDoRegistro } from './registros.js';
 
 const ESPERAS_APOS_ERRO = [5000, 15000, 30000, 60000, 120000];
 
@@ -52,7 +53,7 @@ export function criarSincronizacao({
   // Checklist excluído: as fotos dele saem da nuvem e do aparelho (as regras só deixam
   // apagar a foto depois que o checklist está marcado como excluído).
   const apagarFotosDe = async registro => {
-    for (const foto of registro.fotos || []) {
+    for (const foto of fotosDoRegistro(registro)) {
       await nuvem.apagarFoto(foto.id).catch(() => {});
       await fotos.apagar(foto.id).catch(() => {});
     }

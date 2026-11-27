@@ -20,8 +20,24 @@ export const novoId = (agora = Date.now()) => `ck_${agora.toString(36)}_${aleato
 
 const kmValido = valor => Number.isInteger(valor) && valor >= 0 && valor <= KM_MAXIMO;
 
+/**
+ * Revisão/manutenção informada na inspeção: o que foi feito e as fotos (nota, peças, serviço).
+ * Sem texto, não conta (o motorista abriu o quadro e não usou) e vira null.
+ */
+export const limparManutencao = manutencao => {
+  const descricao = String(manutencao?.descricao ?? '')
+    .trim()
+    .slice(0, 2000);
+  return descricao ? { descricao, fotos: resumoDasFotos(manutencao.fotos) } : null;
+};
+
+export const temManutencao = registro => Boolean(registro.manutencao?.descricao);
+
+/** Todas as fotos do registro: as de "Outros" e as da revisão/manutenção. */
+export const fotosDoRegistro = registro => [...(registro.fotos || []), ...(registro.manutencao?.fotos || [])];
+
 /** Confere os dados da saída. Devolve { ok, erros } com uma mensagem por campo. */
-export function validarChecklist({ motoristaId, motoristaNome, kmSaida, kmVolta, itens }) {
+export function validarChecklist({ motoristaId, motoristaNome, kmSaida, kmVolta, itens, manutencao = null }) {
   const erros = {};
   if (!motoristaId) erros.motorista = 'Escolha o motorista.';
   else if (!limparNome(motoristaNome)) erros.motorista = 'Digite o nome do motorista.';
@@ -32,6 +48,11 @@ export function validarChecklist({ motoristaId, motoristaNome, kmSaida, kmVolta,
   if (kmVolta !== null && kmVolta !== undefined) {
     if (!kmValido(kmVolta)) erros.kmVolta = 'KM de volta inválido.';
     else if (kmValido(kmSaida) && kmVolta < kmSaida) erros.kmVolta = 'O KM de volta não pode ser menor que o de saída.';
+  }
+
+  // Foto de manutenção sem dizer o que foi feito: a administração não saberia do que se trata.
+  if (manutencao && !limparManutencao(manutencao) && manutencao.fotos?.length > 0) {
+    erros.manutencao = 'Escreva o que foi feito na revisão/manutenção (ou remova o quadro).';
   }
 
   const faltando = IDS_ITENS.filter(id => !IDS_SITUACOES.includes(itens?.[id]));
@@ -51,7 +72,7 @@ export function validarRetorno(registro, kmVolta) {
 
 /** Monta o registro que vai para o banco. A data e a hora são capturadas aqui, automaticamente. */
 export function criarRegistro(
-  { unidade, motoristaId, motoristaNome, kmSaida, kmVolta = null, itens, outros = '', fotos = [] },
+  { unidade, motoristaId, motoristaNome, kmSaida, kmVolta = null, itens, outros = '', fotos = [], manutencao = null },
   agora = new Date()
 ) {
   const instante = agora.getTime();
@@ -73,6 +94,7 @@ export function criarRegistro(
       .trim()
       .slice(0, 2000),
     fotos: resumoDasFotos(fotos), // só id e tamanho; a imagem vai à parte (coleção `fotos`)
+    manutencao: limparManutencao(manutencao), // { descricao, fotos } ou null
     excluido: false,
     criadoEm: instante,
     atualizadoEm: instante

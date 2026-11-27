@@ -25,6 +25,8 @@ import {
   criarRegistro,
   emRota,
   fecharPelaSaidaSeguinte,
+  fotosDoRegistro,
+  temManutencao,
   kmRodados,
   registrarRetorno,
   resumoDosItens,
@@ -166,6 +168,70 @@ describe('motoristas', () => {
     assert.equal(lerRascunho(palmeira), null, 'cada unidade tem o seu rascunho');
     gravarRascunho(penedo, { ...rascunho, em: Date.now() - 13 * 60 * 60 * 1000 });
     assert.equal(lerRascunho(penedo), null, 'rascunho com mais de 12 h é descartado');
+  });
+});
+
+describe('revisão / manutenção', () => {
+  it('guarda o que foi feito e as fotos; sem texto, não conta', () => {
+    const registro = novoRegistro({
+      manutencao: {
+        descricao: '  Troca de óleo e filtro  ',
+        fotos: [{ id: 'ft_n', largura: 1280, altura: 960, bytes: 'x' }]
+      }
+    });
+    assert.deepEqual(registro.manutencao, {
+      descricao: 'Troca de óleo e filtro',
+      fotos: [{ id: 'ft_n', largura: 1280, altura: 960 }]
+    });
+    assert.equal(temManutencao(registro), true);
+    assert.deepEqual(
+      fotosDoRegistro({ ...registro, fotos: [{ id: 'ft_o' }] }).map(foto => foto.id),
+      ['ft_o', 'ft_n']
+    );
+    assert.equal(novoRegistro({ manutencao: { descricao: '   ', fotos: [] } }).manutencao, null);
+    assert.equal(novoRegistro().manutencao, null);
+    assert.equal(temManutencao(novoRegistro()), false);
+  });
+
+  it('foto de manutenção sem dizer o que foi feito é cobrada', () => {
+    const base = { motoristaId: 'rogerio', motoristaNome: 'Rogerio', kmSaida: 100, kmVolta: null, itens: ITENS_OK };
+    assert.ok(validarChecklist({ ...base, manutencao: { descricao: '', fotos: [{ id: 'ft_1' }] } }).erros.manutencao);
+    assert.equal(
+      validarChecklist({ ...base, manutencao: { descricao: '', fotos: [] } }).ok,
+      true,
+      'quadro aberto e vazio'
+    );
+    assert.equal(validarChecklist({ ...base, manutencao: { descricao: 'Revisão', fotos: [{ id: 'ft_1' }] } }).ok, true);
+  });
+
+  it('checklist excluído leva também as fotos da manutenção', async () => {
+    banco.limpar();
+    const falso = criarFirestoreFalso();
+    const nuvem = criarNuvem({ projeto: 'projeto-teste', requisitar: falso.requisitar });
+    const fotos = criarCofreDeFotos({ indexedDB: null });
+    const ambiente = { navigator: { onLine: true }, setTimeout: () => 0, clearTimeout: () => {} };
+    const sync = criarSincronizacao({ nuvem, fotos, ambiente });
+    const foto = id => ({
+      id,
+      bytes: new Uint8Array([1, 2, 3]).buffer,
+      tipo: 'image/jpeg',
+      largura: 10,
+      altura: 10,
+      criadoEm: 1
+    });
+    await fotos.guardar(foto('ft_outros'));
+    await fotos.guardar(foto('ft_nota'));
+    const registro = novoRegistro({
+      fotos: [{ id: 'ft_outros' }],
+      manutencao: { descricao: 'Troca de pneu', fotos: [{ id: 'ft_nota' }] }
+    });
+    await fotos.vincular(['ft_outros', 'ft_nota'], registro.id);
+    banco.gravar(registro);
+    await sync.agora();
+    assert.deepEqual([...falso.fotos.keys()].sort(), ['ft_nota', 'ft_outros'], 'as duas sobem');
+    banco.excluir(registro.id);
+    await sync.agora();
+    assert.equal(falso.fotos.size, 0, 'e as duas saem da nuvem');
   });
 });
 
@@ -565,10 +631,13 @@ describe('exportação', () => {
     assert.ok(cabecalho.startsWith('Data;Hora;Unidade;Veículo;Motorista;KM saída;KM volta;KM rodados'));
     assert.ok(linha.includes(';Penedo;Toyota Hilux Cabine Simples;Rogerio;45210;45392;182;'));
     assert.ok(linha.includes(';Concluído;Bom;Bom;Bom;Bom;Bom;Bom;Bom;'));
-    assert.ok(linha.endsWith(`"'=SOMA(A1) ""teste""; ok";`), 'sem fotos, a última coluna fica vazia');
-    assert.ok(cabecalho.endsWith(';Outros;Fotos'));
-    const comFotos = novoRegistro({ fotos: [{ id: 'ft_a' }, { id: 'ft_b' }] });
-    assert.ok(gerarCsv([comFotos]).split('\r\n')[1].endsWith(';2'), 'conta as fotos anexadas');
+    assert.ok(linha.endsWith(`"'=SOMA(A1) ""teste""; ok";;;`), 'sem fotos nem manutenção: colunas vazias');
+    assert.ok(cabecalho.endsWith(';Outros;Fotos;Revisão/manutenção;Fotos da manutenção'));
+    const comFotos = novoRegistro({
+      fotos: [{ id: 'ft_a' }, { id: 'ft_b' }],
+      manutencao: { descricao: 'Troca de óleo', fotos: [{ id: 'ft_c' }] }
+    });
+    assert.ok(gerarCsv([comFotos]).split('\r\n')[1].endsWith(';2;Troca de óleo;1'), 'fotos e manutenção');
   });
 });
 

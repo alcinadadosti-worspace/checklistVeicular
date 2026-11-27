@@ -19,7 +19,9 @@ automaticamente. A administração acompanha as duas unidades num painel.
    - **Veículo** — informa o KM de saída.
    - **Inspeção** — marca cada item como _Bom_, _Ruim_ ou _Faltante / Não funciona_ e, se quiser,
      escreve algo em _Outros_. Também pode anexar **até 4 fotos** (câmera ou galeria): o app reduz
-     cada foto antes de guardar, e a administração vê na ficha do checklist.
+     cada foto antes de guardar, e a administração vê na ficha do checklist. Se fez **revisão ou
+     manutenção** (troca de óleo, revisão, pneu…), toca em _Registrar revisão ou manutenção_, escreve
+     o que foi feito e, se quiser, manda até 4 fotos (nota fiscal, peça, painel).
    - **Revisão** — confere e envia. A data e a hora são gravadas pelo app nesse momento.
 4. Depois do envio o veículo fica **em rota**. Ao retornar, o motorista abre o app e toca em
    **Registrar retorno** (a data e a hora do retorno também são automáticas). Se esquecer, o próximo
@@ -27,7 +29,8 @@ automaticamente. A administração acompanha as duas unidades num painel.
    seguinte" (a hora da volta fica sendo a desse checklist).
 
 A administração entra com o código dela e vê: veículos em rota, checklists por período, itens com
-apontamento, quilômetros rodados, a ficha de cada checklist, exportação para planilha (CSV) e exclusão.
+apontamento, quilômetros rodados, a ficha de cada checklist (com fotos e revisão/manutenção, se houver),
+o filtro _Com manutenção_, exportação para planilha (CSV) e exclusão.
 
 ## Celular e tablet
 

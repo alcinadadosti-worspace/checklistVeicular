@@ -144,7 +144,13 @@ export function GaleriaFotos({ fotos }) {
  * Campo de fotos do passo "Inspeção". `fotos` = [{ id, largura, altura }] do rascunho;
  * `aoMudar(atualizar)` recebe uma função que leva a lista atual à nova.
  */
-export function CampoFotos({ fotos, unidadeId, aoMudar }) {
+export function CampoFotos({
+  fotos,
+  unidadeId,
+  aoMudar,
+  rotulo = 'Fotos',
+  dica = 'Mostre o que viu: um pneu, um arranhão, uma luz no painel. A administração vê na ficha.'
+}) {
   const entrada = useRef(null);
   const [preparando, setPreparando] = useState(0);
   const [erro, setErro] = useState('');
@@ -197,7 +203,7 @@ export function CampoFotos({ fotos, unidadeId, aoMudar }) {
   return (
     <div className="campo-fotos">
       <span className="rotulo">
-        Fotos <em>opcional · até {FOTOS_POR_CHECKLIST}</em>
+        {rotulo} <em>opcional · até {FOTOS_POR_CHECKLIST}</em>
       </span>
       <ul className="fotos" data-vazio={ocupadas === 0 ? '' : undefined}>
         <AnimatePresence initial={false}>
@@ -244,9 +250,7 @@ export function CampoFotos({ fotos, unidadeId, aoMudar }) {
           {erro}
         </p>
       ) : (
-        <p className="campo__dica">
-          Mostre o que viu: um pneu, um arranhão, uma luz no painel. A administração vê na ficha.
-        </p>
+        <p className="campo__dica">{dica}</p>
       )}
       <VisorDeFoto url={aberta} aoFechar={() => setAberta(null)} />
     </div>

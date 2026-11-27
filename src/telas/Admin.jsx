@@ -13,7 +13,7 @@ import { banco } from '../lib/banco.js';
 import { baixarCsv } from '../lib/exportar.js';
 import { dataHora, diaPorExtenso, haQuantoTempo, km, numero, saudacao, semAcento } from '../lib/formato.js';
 import { TELA_DEITADA_BAIXA, TELA_LARGA, useAgora, useBanco, useMidia, useSincronizacao } from '../lib/ganchos.js';
-import { emRota, kmRodados, resumoDosItens, temProblema, ultimoKm } from '../lib/registros.js';
+import { emRota, kmRodados, resumoDosItens, temManutencao, temProblema, ultimoKm } from '../lib/registros.js';
 import { nuvem } from '../lib/nuvem.js';
 import { sincronizacao } from '../lib/sincronizacao.js';
 import CometDial from '../reactbits/CometDial.jsx';
@@ -30,7 +30,8 @@ const SITUACOES_DE_FILTRO = [
   { id: 'todas', nome: 'Todos' },
   { id: 'rota', nome: 'Em rota' },
   { id: 'problemas', nome: 'Com apontamentos' },
-  { id: 'ok', nome: 'Sem apontamentos' }
+  { id: 'ok', nome: 'Sem apontamentos' },
+  { id: 'manutencao', nome: 'Com manutenção' }
 ];
 
 const aparecer = (atraso = 0) => ({
@@ -162,11 +163,12 @@ export default function Admin({ aoSair }) {
       if (filtroSituacao === 'rota' && !emRota(registro)) return false;
       if (filtroSituacao === 'problemas' && !temProblema(registro)) return false;
       if (filtroSituacao === 'ok' && temProblema(registro)) return false;
+      if (filtroSituacao === 'manutencao' && !temManutencao(registro)) return false;
       if (
         termo &&
-        !semAcento(`${registro.motoristaNome} ${registro.unidadeNome} ${registro.veiculo} ${registro.outros}`).includes(
-          termo
-        )
+        !semAcento(
+          `${registro.motoristaNome} ${registro.unidadeNome} ${registro.veiculo} ${registro.outros} ${registro.manutencao?.descricao || ''}`
+        ).includes(termo)
       ) {
         return false;
       }

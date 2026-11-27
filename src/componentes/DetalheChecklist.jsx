@@ -46,6 +46,12 @@ export default function DetalheChecklist({ registro, pendente = false }) {
             Tudo em ordem
           </span>
         )}
+        {registro.manutencao?.descricao ? (
+          <span className="selo selo--manutencao">
+            <Icone nome="chave" tamanho={14} />
+            Revisão / manutenção
+          </span>
+        ) : null}
         {registro.voltaPelaSaidaSeguinte ? (
           <span className="selo selo--pendente" title="O motorista não registrou a volta">
             <Icone nome="rota" tamanho={14} />
@@ -119,6 +125,16 @@ export default function DetalheChecklist({ registro, pendente = false }) {
             {registro.fotos.length === 1 ? 'Foto' : `Fotos (${registro.fotos.length})`}
           </h3>
           <GaleriaFotos fotos={registro.fotos} />
+        </>
+      ) : null}
+
+      {registro.manutencao?.descricao ? (
+        <>
+          <h3 className="detalhe__titulo detalhe__titulo--manutencao">
+            <Icone nome="chave" tamanho={16} /> Revisão / manutenção
+          </h3>
+          <p className="detalhe__outros">{registro.manutencao.descricao}</p>
+          <GaleriaFotos fotos={registro.manutencao.fotos} />
         </>
       ) : null}
     </div>

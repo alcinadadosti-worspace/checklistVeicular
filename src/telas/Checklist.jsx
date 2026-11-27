@@ -9,7 +9,7 @@ import { PalcoVeiculo } from '../componentes/Veiculo.jsx';
 import { ITENS, nomeDoVeiculo } from '../config/frota.js';
 import { nomeDoMotorista } from '../lib/acesso.js';
 import { banco } from '../lib/banco.js';
-import { cofreDeFotos } from '../lib/fotosDoChecklist.js';
+import { cofreDeFotos, esquecerFoto } from '../lib/fotosDoChecklist.js';
 import { dataHora, limparNome, numero, paraKm } from '../lib/formato.js';
 import { useBanco } from '../lib/ganchos.js';
 import { apagarRascunho, gravarRascunho, lerRascunho, novoRascunho } from '../lib/rascunho.js';
@@ -17,6 +17,8 @@ import {
   criarRegistro,
   emRota,
   fecharPelaSaidaSeguinte,
+  fotosDoRegistro,
+  limparManutencao,
   piorSituacao,
   resumoDosItens,
   ultimoKm,
@@ -140,7 +142,77 @@ function PassoVeiculo({ unidade, motoristaNome, dados, mudar, erros, ultimo, abe
 /* Passo 2 — Itens inspecionados                                       */
 /* ------------------------------------------------------------------ */
 
-function PassoInspecao({ unidade, dados, mudar, mudarFotos, erro, cobrar }) {
+/**
+ * Revisão/manutenção feita no veículo (troca de óleo, revisão, pneu…): o motorista abre o quadro,
+ * escreve o que foi feito e, se quiser, anexa fotos (nota, peça, serviço).
+ */
+function QuadroManutencao({ unidade, manutencao, aoAbrir, aoRemover, aoMudarTexto, aoMudarFotos, erro }) {
+  if (!manutencao) {
+    return (
+      <button type="button" className="manutencao-abrir" onClick={aoAbrir}>
+        <span className="manutencao-abrir__icone">
+          <Icone nome="chave" tamanho={20} />
+        </span>
+        <span className="manutencao-abrir__textos">
+          <strong>Registrar revisão ou manutenção</strong>
+          <span>Fez troca de óleo, revisão, pneu ou outro serviço? Conte aqui e mande fotos.</span>
+        </span>
+        <Icone nome="seta-direita" tamanho={18} />
+      </button>
+    );
+  }
+  return (
+    <motion.section
+      className="manutencao"
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25 }}
+      data-erro={erro ? '' : undefined}
+    >
+      <header className="manutencao__topo">
+        <span className="manutencao-abrir__icone">
+          <Icone nome="chave" tamanho={20} />
+        </span>
+        <div>
+          <strong>Revisão / manutenção</strong>
+          <span>A administração vê o texto e as fotos na ficha deste checklist.</span>
+        </div>
+        <button type="button" className="botao-icone" aria-label="Remover revisão/manutenção" onClick={aoRemover}>
+          <Icone nome="lixeira" tamanho={18} />
+        </button>
+      </header>
+      <div className="campo">
+        <label className="rotulo" htmlFor="manutencao-texto">
+          O que foi feito
+        </label>
+        <textarea
+          id="manutencao-texto"
+          className="entrada entrada--texto"
+          rows={3}
+          maxLength={2000}
+          value={manutencao.descricao}
+          aria-invalid={erro ? true : undefined}
+          placeholder="Ex.: troca de óleo e filtro na oficina do centro; revisão dos 50.000 km; troca do pneu traseiro direito…"
+          onChange={evento => aoMudarTexto(evento.target.value)}
+        />
+        {erro ? (
+          <p className="campo__erro" role="alert">
+            {erro}
+          </p>
+        ) : null}
+      </div>
+      <CampoFotos
+        fotos={manutencao.fotos ?? []}
+        unidadeId={unidade.id}
+        aoMudar={aoMudarFotos}
+        rotulo="Fotos do serviço"
+        dica="Nota fiscal, peça trocada, painel com a quilometragem… A administração vê na ficha."
+      />
+    </motion.section>
+  );
+}
+
+function PassoInspecao({ unidade, dados, mudar, mudarFotos, acoesManutencao, erro, cobrar }) {
   const resumo = resumoDosItens(dados.itens);
   const pior = piorSituacao(dados.itens);
   const cor = pior && pior !== 'bom' ? COR_DA_SITUACAO[pior] : resumo.completo ? COR_DA_SITUACAO.bom : '#38bdf8';
@@ -218,6 +290,8 @@ function PassoInspecao({ unidade, dados, mudar, mudarFotos, erro, cobrar }) {
         />
         <CampoFotos fotos={dados.fotos ?? []} unidadeId={unidade.id} aoMudar={mudarFotos} />
       </div>
+
+      <QuadroManutencao unidade={unidade} manutencao={dados.manutencao} {...acoesManutencao} />
     </div>
   );
 }
@@ -346,6 +420,16 @@ function PassoRevisao({ unidade, motoristaNome, dados, erros, abertas, fechadas 
             <GaleriaFotos fotos={dados.fotos} />
           </>
         ) : null}
+
+        {limparManutencao(dados.manutencao) ? (
+          <>
+            <h3 className="detalhe__titulo detalhe__titulo--manutencao">
+              <Icone nome="chave" tamanho={16} /> Revisão / manutenção
+            </h3>
+            <p className="detalhe__outros">{dados.manutencao.descricao.trim()}</p>
+            <GaleriaFotos fotos={dados.manutencao.fotos} />
+          </>
+        ) : null}
       </div>
     </div>
   );
@@ -381,6 +465,20 @@ export default function Checklist({ unidade, motorista, formularioId, passo, aoM
 
   const mudar = parte => setDados(atual => ({ ...atual, ...parte }));
   const mudarFotos = atualizar => setDados(atual => ({ ...atual, fotos: atualizar(atual.fotos ?? []) }));
+  const mudarManutencao = parte =>
+    setDados(atual => ({ ...atual, manutencao: { descricao: '', fotos: [], ...atual.manutencao, ...parte(atual) } }));
+  const acoesManutencao = {
+    aoAbrir: () => mudar({ manutencao: { descricao: '', fotos: [] } }),
+    aoRemover: () => {
+      for (const foto of dados.manutencao?.fotos ?? []) {
+        cofreDeFotos.apagar(foto.id).catch(() => {});
+        esquecerFoto(foto.id);
+      }
+      mudar({ manutencao: null });
+    },
+    aoMudarTexto: descricao => mudarManutencao(() => ({ descricao })),
+    aoMudarFotos: atualizar => mudarManutencao(atual => ({ fotos: atualizar(atual.manutencao?.fotos ?? []) }))
+  };
 
   const ultimo = useMemo(() => ultimoKm(registros, unidade.id), [registros, unidade.id]);
   const saida = paraKm(dados.kmSaida);
@@ -404,14 +502,18 @@ export default function Checklist({ unidade, motorista, formularioId, passo, aoM
       motoristaNome: nome,
       kmSaida: saida,
       kmVolta: null,
-      itens: dados.itens
+      itens: dados.itens,
+      manutencao: dados.manutencao
     });
     return { erros: resultado.erros, ok: resultado.ok };
-  }, [dados.itens, motorista.id, nome, saida]);
+  }, [dados.itens, dados.manutencao, motorista.id, nome, saida]);
 
   const errosDoPasso = [
     validacao.erros.kmSaida ? { kmSaida: validacao.erros.kmSaida } : {},
-    validacao.erros.itens ? { itens: validacao.erros.itens } : {},
+    {
+      ...(validacao.erros.itens ? { itens: validacao.erros.itens } : {}),
+      ...(validacao.erros.manutencao ? { manutencao: validacao.erros.manutencao } : {})
+    },
     validacao.erros
   ];
 
@@ -426,12 +528,13 @@ export default function Checklist({ unidade, motorista, formularioId, passo, aoM
       kmVolta: null,
       itens: dados.itens,
       outros: dados.outros,
-      fotos: dados.fotos
+      fotos: dados.fotos,
+      manutencao: dados.manutencao
     });
     // As fotos entram na fila de envio junto com o checklist.
     await cofreDeFotos
       .vincular(
-        registro.fotos.map(foto => foto.id),
+        fotosDoRegistro(registro).map(foto => foto.id),
         registro.id
       )
       .catch(() => {});
@@ -526,6 +629,7 @@ export default function Checklist({ unidade, motorista, formularioId, passo, aoM
                 dados={dados}
                 mudar={mudar}
                 mudarFotos={mudarFotos}
+                acoesManutencao={{ ...acoesManutencao, erro: mostrar(1).manutencao }}
                 erro={mostrar(1).itens}
                 cobrar={Boolean(tentou[1])}
               />
