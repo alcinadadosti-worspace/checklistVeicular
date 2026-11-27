@@ -29,6 +29,23 @@ automaticamente. A administração acompanha as duas unidades num painel.
 A administração entra com o código dela e vê: veículos em rota, checklists por período, itens com
 apontamento, quilômetros rodados, a ficha de cada checklist, exportação para planilha (CSV) e exclusão.
 
+## Celular e tablet
+
+O app se ajusta a celular (pequeno ou grande, em pé ou deitado) e a tablet (em pé ou deitado). Em telas
+largas e baixas — celular deitado, tablet deitado — as telas ficam em duas colunas.
+
+**Instalar como aplicativo** (abre pelo ícone, em tela cheia, e funciona sem internet depois da
+primeira visita):
+
+- **Android:** abra o site no Chrome e toque em **Instalar o app neste aparelho** (no login ou na
+  tela inicial). Se o botão não aparecer, use o menu ⋮ do Chrome → **Instalar app** ou **Adicionar à
+  tela inicial**.
+- **iPhone/iPad:** abra o site no Safari, toque em **Compartilhar** (quadrado com a seta para cima) →
+  **Adicionar à Tela de Início**. O app mostra essa dica em **Instalar no iPhone ou iPad**.
+
+Os ícones ficam em `public/icones/` e são gerados a partir de `public/favicon.svg` com
+`npm run icones`.
+
 ## Rodar no computador
 
 Precisa do [Node.js](https://nodejs.org) 20.19 ou mais novo.
@@ -39,6 +56,7 @@ npm run dev        # abre em http://localhost:5173
 npm run build      # gera a pasta dist/ (é o que vai para o ar)
 npm run preview    # serve a pasta dist/ em http://localhost:4173
 npm test           # testes da parte de dados
+npm run icones     # refaz os ícones do app instalado (public/icones/) a partir do favicon.svg
 ```
 
 Há também testes de navegador em `tests/e2e` e um teste de integração com o banco em

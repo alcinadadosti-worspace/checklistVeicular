@@ -12,7 +12,7 @@ import { ADMIN, UNIDADES, nomeDoVeiculo } from '../config/frota.js';
 import { banco } from '../lib/banco.js';
 import { baixarCsv } from '../lib/exportar.js';
 import { dataHora, diaPorExtenso, haQuantoTempo, km, numero, saudacao, semAcento } from '../lib/formato.js';
-import { useAgora, useBanco, useMidia, useSincronizacao } from '../lib/ganchos.js';
+import { TELA_DEITADA_BAIXA, TELA_LARGA, useAgora, useBanco, useMidia, useSincronizacao } from '../lib/ganchos.js';
 import { emRota, kmRodados, resumoDosItens, temProblema, ultimoKm } from '../lib/registros.js';
 import { nuvem } from '../lib/nuvem.js';
 import { sincronizacao } from '../lib/sincronizacao.js';
@@ -117,7 +117,8 @@ export default function Admin({ aoSair }) {
   const { registros, idsPendentes } = useBanco();
   const sync = useSincronizacao();
   const agora = useAgora(30000);
-  const telaLarga = useMidia('(min-width: 900px)');
+  const telaLarga = useMidia(TELA_LARGA);
+  const telaBaixa = useMidia(TELA_DEITADA_BAIXA);
   const [dias, setDias] = useState(30);
   const [filtroUnidade, setFiltroUnidade] = useState('todas');
   const [filtroSituacao, setFiltroSituacao] = useState('todas');
@@ -222,6 +223,8 @@ export default function Admin({ aoSair }) {
               tema="violeta"
               metal="gold"
               ancora={telaLarga ? 'left' : 'center'}
+              tamanho={telaBaixa ? 0.5 : undefined}
+              cordao={telaBaixa ? 0.24 : undefined}
             />
           </div>
 

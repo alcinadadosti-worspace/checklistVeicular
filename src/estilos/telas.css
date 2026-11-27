@@ -521,7 +521,7 @@
   align-items: start;
 }
 
-@media (min-width: 900px) {
+@media (min-width: 900px), (orientation: landscape) and (min-width: 640px) and (max-height: 560px) {
   .inicio__heroi {
     grid-template-columns: minmax(0, 0.92fr) minmax(0, 1fr);
     gap: 40px;
@@ -552,15 +552,17 @@
 
 .trilho {
   position: relative;
-  width: min(720px, 100% - 32px);
+  width: min(720px, 100% - 2 * var(--margem-lateral));
   margin: 16px auto 0;
 }
 
+/* uma coluna por etapa (quantas houver: --passos vem do Checklist.jsx) */
 .trilho ol {
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
 }
 
 .trilho li {
@@ -626,8 +628,8 @@
 .trilho__barra {
   position: absolute;
   top: 17px;
-  left: 12.5%;
-  right: 12.5%;
+  left: calc(50% / var(--passos, 3));
+  right: calc(50% / var(--passos, 3));
   height: 3px;
   border-radius: 3px;
   background: rgba(148, 163, 184, 0.2);
@@ -688,7 +690,7 @@
   height: clamp(220px, 32dvh, 360px);
 }
 
-@media (min-width: 900px) {
+@media (min-width: 900px), (orientation: landscape) and (min-width: 640px) and (max-height: 560px) {
   .passo--dividido {
     grid-template-columns: minmax(0, 1.02fr) minmax(0, 1fr);
     gap: 40px;
@@ -923,7 +925,7 @@
   gap: 16px;
 }
 
-@media (min-width: 900px) {
+@media (min-width: 900px), (orientation: landscape) and (min-width: 640px) and (max-height: 560px) {
   .passo--revisao {
     grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
     gap: 36px;
@@ -949,7 +951,7 @@
 .assistente__rodape-conteudo {
   display: flex;
   gap: 12px;
-  width: min(720px, 100% - 32px);
+  width: min(720px, 100% - 2 * var(--margem-lateral));
   margin-inline: auto;
   pointer-events: auto;
 }
@@ -1241,7 +1243,7 @@
   }
 }
 
-@media (min-width: 900px) {
+@media (min-width: 900px), (orientation: landscape) and (min-width: 640px) and (max-height: 560px) {
   .admin__heroi {
     display: grid;
     align-items: center;
@@ -1282,5 +1284,150 @@
     grid-template-columns: auto minmax(0, 1fr);
     gap: 28px;
     padding: 20px 24px;
+  }
+}
+
+/* ==========================================================================
+   Celular deitado (tela larga e baixa): duas colunas e menos "moldura"
+   As regras de duas colunas das telas largas (acima) também valem aqui; este
+   bloco só acerta alturas e tamanhos para caber em ~360–430 px de altura.
+   ========================================================================== */
+
+@media (orientation: landscape) and (min-width: 640px) and (max-height: 560px) {
+  /* login: marca e mensagem à esquerda, teclado à direita */
+  .login {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 300px);
+    column-gap: 40px;
+    row-gap: 10px;
+    align-content: center;
+    width: min(760px, 100% - 2 * var(--margem-lateral));
+    padding-block: 16px max(16px, env(safe-area-inset-bottom));
+  }
+
+  .login > * {
+    grid-column: 1;
+  }
+
+  .login .teclado {
+    grid-column: 2;
+    grid-row: 1 / span 5;
+    align-self: center;
+    gap: 10px;
+    margin-top: 0;
+  }
+
+  .tecla {
+    height: clamp(44px, 15.5dvh, 60px);
+    border-radius: 16px;
+    font-size: 23px;
+  }
+
+  .login__marca {
+    width: 64px;
+    height: 64px;
+    border-radius: 22px;
+  }
+
+  /* quem está acessando: textos e "Outro" à esquerda, crachás à direita, do tamanho da altura */
+  .escolha {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'topo crachas'
+      'outro crachas';
+    justify-items: stretch;
+    align-items: center;
+    column-gap: 32px;
+    row-gap: 18px;
+    padding-top: 12px;
+  }
+
+  .escolha__topo {
+    grid-area: topo;
+    align-self: end;
+    text-align: left;
+  }
+
+  .escolha__topo h1 {
+    font-size: 34px;
+  }
+
+  .escolha__outro {
+    grid-area: outro;
+    align-self: start;
+    width: 100%;
+  }
+
+  .crachas {
+    grid-area: crachas;
+    grid-auto-flow: column;
+    grid-template-columns: none;
+    grid-auto-columns: minmax(0, 1fr);
+    --largura-cartao: max(110px, (100dvh - var(--topo-altura) - 150px) * 0.711);
+    width: calc(var(--cartoes, 2) * var(--largura-cartao) + (var(--cartoes, 2) - 1) * 18px);
+  }
+
+  /* início e administração: o crachá ocupa a altura da tela, sem empurrar o resto para baixo */
+  .inicio__heroi .palco--cracha {
+    height: max(260px, 100dvh - var(--topo-altura) - 40px);
+  }
+
+  .admin__heroi {
+    min-height: max(300px, 100dvh - var(--topo-altura) - 40px);
+  }
+
+  .admin__resumo {
+    padding: 24px 24px 24px 0;
+  }
+
+  /* checklist e retorno: barra de etapas e rodapé mais baixos; palco da altura que sobra */
+  .trilho {
+    margin-top: 8px;
+  }
+
+  .trilho__bola {
+    width: 30px;
+    height: 30px;
+  }
+
+  .trilho__barra {
+    top: 14px;
+  }
+
+  .trilho button {
+    gap: 3px;
+  }
+
+  .passo--dividido {
+    gap: 24px;
+  }
+
+  .passo--dividido > .palco {
+    top: calc(var(--topo-altura) + 12px);
+    height: max(200px, 100dvh - var(--topo-altura) - 120px);
+  }
+
+  .passo--revisao {
+    gap: 24px;
+  }
+
+  .revisao__painel {
+    top: calc(var(--topo-altura) + 12px);
+    padding-block: 20px 24px;
+  }
+
+  .assistente__rodape {
+    padding: 12px 0 calc(8px + env(safe-area-inset-bottom));
+  }
+
+  .assistente__rodape-conteudo .botao--g,
+  .assistente__rodape-conteudo .botao--fantasma {
+    min-height: 48px;
+  }
+}
+
+/* Celular em pé com tela baixa: crachá menor na tela inicial para o botão do checklist aparecer. */
+@media (orientation: portrait) and (max-height: 700px) {
+  .inicio__heroi .palco--cracha {
+    height: clamp(250px, 42dvh, 370px);
   }
 }

@@ -13,6 +13,7 @@
     "fotos": "node scripts/preparar-fotos.mjs --forcar",
     "modelos": "node scripts/gerar-modelos.mjs",
     "codigo": "node scripts/gerar-codigo.mjs",
+    "icones": "node scripts/gerar-icones.mjs",
     "test": "node --test \"tests/**/*.test.js\""
   },
   "engines": {

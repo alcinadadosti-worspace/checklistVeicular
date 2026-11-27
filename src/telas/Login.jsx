@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import { transicaoDeTela } from '../componentes/Basicos.jsx';
 import { FundoFibras } from '../componentes/Fundos.jsx';
 import Icone from '../componentes/Icone.jsx';
+import Instalar from '../componentes/Instalar.jsx';
 import { UNIDADES } from '../config/frota.js';
 import { CODIGO_MAXIMO, CODIGO_MINIMO, identificar } from '../lib/acesso.js';
 import { useAgora } from '../lib/ganchos.js';
@@ -188,6 +189,7 @@ export default function Login({ aoEntrar }) {
           <Icone nome="rota" tamanho={15} />
           {UNIDADES.map(unidade => unidade.nome).join(' · ')}
         </p>
+        <Instalar />
       </div>
     </motion.main>
   );

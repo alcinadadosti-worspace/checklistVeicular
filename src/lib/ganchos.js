@@ -45,6 +45,12 @@ export function useNaTela(margem = '240px') {
   return [ref, apareceu];
 }
 
+// As mesmas condições das media queries do CSS (src/estilos/telas.css).
+/** Celular deitado: tela larga e baixa. */
+export const TELA_DEITADA_BAIXA = '(orientation: landscape) and (min-width: 640px) and (max-height: 560px)';
+/** Telas em que o layout passa a ter duas colunas (computador, tablet deitado, celular deitado). */
+export const TELA_LARGA = `(min-width: 900px), ${TELA_DEITADA_BAIXA}`;
+
 /** true quando a consulta de mídia casa (ex.: '(min-width: 900px)'). */
 export function useMidia(consulta) {
   const [casa, setCasa] = useState(() => (typeof window !== 'undefined' ? window.matchMedia(consulta).matches : false));

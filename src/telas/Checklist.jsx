@@ -469,7 +469,7 @@ export default function Checklist({ unidade, motorista, formularioId, passo, aoM
         aoVoltar={aoVoltar}
       />
 
-      <nav className="trilho" aria-label="Etapas do checklist">
+      <nav className="trilho" aria-label="Etapas do checklist" style={{ '--passos': PASSOS.length }}>
         <ol>
           {PASSOS.map((etapa, indice) => {
             const estado = indice < passo ? 'feito' : indice === passo ? 'atual' : 'adiante';

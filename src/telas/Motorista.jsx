@@ -154,7 +154,7 @@ export default function EscolhaMotorista({ unidade, atual, troca, aoEscolher, ao
           <p className="texto-2">Toque no seu crachá para entrar.</p>
         </motion.header>
 
-        <ul className="crachas" aria-label="Motoristas da unidade">
+        <ul className="crachas" aria-label="Motoristas da unidade" style={{ '--cartoes': comCracha.length }}>
           {comCracha.map((motorista, indice) => (
             <CrachaParaEscolher
               key={motorista.id}

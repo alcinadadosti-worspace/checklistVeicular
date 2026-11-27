@@ -1,9 +1,10 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
 // Funcionamento offline: no build, gera dist/sw.js a partir de scripts/sw-modelo.js,
-// preenchendo a versão do cache e a lista de arquivos do app (JS, CSS, fotos e fontes).
+// preenchendo a versão do cache e a lista de arquivos do app (JS, CSS, fotos e fontes, mais o
+// manifesto e os ícones do app instalado, que ficam em public/).
 // Depois da primeira visita o app abre mesmo sem internet.
 const servicoOffline = () => ({
   name: 'servico-offline',
@@ -12,6 +13,11 @@ const servicoOffline = () => ({
     const arquivos = Object.keys(pacote)
       .filter(nome => /\.(js|css|webp|png|jpg|svg)$/.test(nome) || /-latin(-ext)?-.*\.woff2$/.test(nome))
       .map(nome => `/${nome}`)
+      .concat(
+        '/manifest.webmanifest',
+        '/favicon.svg',
+        readdirSync(new URL('./public/icones/', import.meta.url)).map(nome => `/icones/${nome}`)
+      )
       .sort();
     const modelo = readFileSync(new URL('./scripts/sw-modelo.js', import.meta.url), 'utf8');
     const codigo = modelo

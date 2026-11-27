@@ -5,13 +5,14 @@ import Cracha from '../componentes/Cracha.jsx';
 import DetalheChecklist from '../componentes/DetalheChecklist.jsx';
 import { FundoRadar } from '../componentes/Fundos.jsx';
 import Icone from '../componentes/Icone.jsx';
+import Instalar from '../componentes/Instalar.jsx';
 import { LinhaRegistro, PastaDeChecklists } from '../componentes/Registros.jsx';
 import StatusNuvem from '../componentes/StatusNuvem.jsx';
 import { PalcoVeiculo } from '../componentes/Veiculo.jsx';
 import { motoristaPorId } from '../config/frota.js';
 import { nomeDoMotorista } from '../lib/acesso.js';
 import { dataHora, diaPorExtenso, haQuantoTempo, hora, numero, saudacao } from '../lib/formato.js';
-import { useAgora, useBanco } from '../lib/ganchos.js';
+import { TELA_DEITADA_BAIXA, useAgora, useBanco, useMidia } from '../lib/ganchos.js';
 import { nuvem } from '../lib/nuvem.js';
 import { emRota, ultimoKm } from '../lib/registros.js';
 
@@ -52,6 +53,7 @@ function CartaoViagem({ registro, aoRetornar, agora }) {
 export default function Inicio({ unidade, motorista, aoIniciar, aoTrocarMotorista, aoRetornar, aoSair }) {
   const { registros, idsPendentes } = useBanco();
   const agora = useAgora(30000);
+  const telaBaixa = useMidia(TELA_DEITADA_BAIXA); // celular deitado: crachá um pouco menor
   const [aberto, setAberto] = useState(null);
 
   const daUnidade = useMemo(
@@ -99,6 +101,8 @@ export default function Inicio({ unidade, motorista, aoIniciar, aoTrocarMotorist
               foto={pessoa.foto}
               foco={pessoa.foco}
               zoom={pessoa.zoom}
+              tamanho={telaBaixa ? 0.5 : undefined}
+              cordao={telaBaixa ? 0.24 : undefined}
             />
           </motion.div>
 
@@ -130,6 +134,7 @@ export default function Inicio({ unidade, motorista, aoIniciar, aoTrocarMotorist
               <Icone nome="usuario" tamanho={16} />
               Não é {primeiroNome}? Trocar motorista
             </button>
+            <Instalar className="inicio__instalar" />
 
             <dl className="indicadores">
               <div>

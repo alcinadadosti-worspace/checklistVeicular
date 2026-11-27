@@ -25,7 +25,7 @@ Quando o usuário escrever **"vamos continuar"**:
 4. Ao concluir uma etapa, atualize **Estado atual** (com a data) e faça commit + push — o usuário
    autorizou commit e push neste projeto. Adicione arquivos **pelo nome**, nunca `git add -A`.
 
-## Estado atual — 27/11/2026 (tarde)
+## Estado atual — 27/11/2026 (fim da tarde)
 
 **Pronto e no ar** (27/11: crachás, fotos e volta pela saída seguinte; Manual Deploy do usuário às
 11h39, `index-CM6jYYiP.js`):
@@ -58,9 +58,20 @@ Quando o usuário escrever **"vamos continuar"**:
 - Testes: 41 de dados (`npm test`) e 6 de navegador em `tests/e2e`, todos passando em 27/11 na
   prévia local; `dois-aparelhos-banco-real.js` (com foto) passou na prévia local contra o banco
   real, já com as regras novas.
+- **Celular e tablet** (27/11, pedido "portabilidade"; **ainda não publicado** — falta Manual
+  Deploy): app instalável (manifesto com `orientation: any`, ícones PNG em `public/icones/` por
+  `npm run icones`, `apple-touch-icon`; Chrome confirma instalável), botão "Instalar o app" no login
+  e no início (`src/lib/instalacao.js` + `src/componentes/Instalar.jsx`; no iPhone mostra o
+  Compartilhar → Adicionar à Tela de Início). Celular deitado (`TELA_DEITADA_BAIXA` em `ganchos.js`
+  e a mesma condição no CSS) usa o layout de duas colunas das telas largas, com login/teclado lado a
+  lado. Topo reserva a barra de status do iPhone (`--topo-altura` com `safe-area-inset-top`) e as
+  laterais desviam do entalhe (`--margem-lateral`). Barra de etapas corrigida para 3 colunas (estava
+  com 4 desde a saída do passo "Motorista"). Toques ≥ 40 px (indicador da nuvem, atalhos, filtros).
 - **Testado no site publicado em 27/11 (~11h45):** `fluxo-motorista.js` (Penedo e Palmeira),
   `offline.js`, `navegacao-voltar.js` e `dois-aparelhos-banco-real.js` com foto — tudo certo.
-- **Pendente com o usuário:** Deploy Hook (opcional) — sem ele, cada push precisa de Manual Deploy.
+- **Pendente com o usuário:** **Manual Deploy** (celular e tablet); depois, rodar no site
+  `aparelhos.js`, `instalacao.js` e `fluxo-motorista.js` com `TARGET_URL`. Deploy Hook (opcional) —
+  sem ele, cada push precisa de Manual Deploy.
 
 **Publicação no Render — sem Auto-Deploy:** o site foi criado pela opção "Public Git Repository"
 (endereço colado), e nessa opção o Render **não publica sozinho** a cada push (não há webhook do
@@ -110,6 +121,7 @@ painel do Render (opcional).
 | `npm run fotos`                     | refaz as fotos dos crachás a partir de `img/`                                     |
 | `npm run modelos`                   | regenera os carros 3D (`public/models/*.glb`)                                     |
 | `npm run codigo -- 12345`           | gera o hash de um código de acesso                                                |
+| `npm run icones`                    | refaz os ícones do app instalado (`public/icones/`) a partir do `favicon.svg`     |
 
 ## Mapa do código
 
@@ -121,6 +133,8 @@ painel do Render (opcional).
   servidor; `documents:runQuery` incremental por `servidorEm` (relê 1 min de margem).
 - `src/lib/sincronizacao.js` — ciclo baixar → enviar, com novas tentativas e modo offline.
 - `src/lib/cracha.js` — desenha frente, verso e cordão do crachá (canvas) para o Lanyard.
+- `src/lib/instalacao.js` + `src/componentes/Instalar.jsx` — botão "Instalar o app" (Android) e dica
+  do iPhone/iPad; `public/manifest.webmanifest` e `public/icones/` (`scripts/gerar-icones.mjs`).
 - `src/lib/fotosDoChecklist.js` — fotos anexadas: cofre no aparelho (IndexedDB), redução, endereço
   para mostrar (do aparelho ou baixada da nuvem). `src/componentes/Fotos.jsx` — campo, galeria e visor.
 - `src/telas/` — Login, Motorista ("Quem está acessando?"), Inicio, Checklist, Retorno, Sucesso, Admin. `src/App.jsx` guarda as rotas
@@ -160,14 +174,16 @@ ela fica atrás de outras janelas). Antes: `npm run build && npm run preview` (o
 CODIGOS_TESTE="penedo=…,palmeira=…,admin=…" node ~/.claude/skills/playwright/run.js tests/e2e/<arquivo>.js
 ```
 
-| Arquivo                                                                     | Banco        | Códigos         |
-| --------------------------------------------------------------------------- | ------------ | --------------- |
-| `fluxo-motorista.js` — código → crachá → 3 passos → envio → retorno         | bloqueado    | da unidade      |
-| `administracao.js` — painel, filtros, CSV, exclusão, Palmeira, botão voltar | bloqueado    | admin, palmeira |
-| `navegacao-voltar.js` — botão voltar no assistente, rascunho, sair          | bloqueado    | —               |
-| `offline.js` — checklist inteiro sem internet depois da 1ª visita           | bloqueado    | penedo          |
-| `capturas.js` — capturas das telas principais (celular e computador)        | bloqueado    | —               |
-| `dois-aparelhos-banco-real.js` — motorista e administração sincronizando    | **produção** | penedo, admin   |
+| Arquivo                                                                        | Banco        | Códigos         |
+| ------------------------------------------------------------------------------ | ------------ | --------------- |
+| `fluxo-motorista.js` — código → crachá → 3 passos → envio → retorno            | bloqueado    | da unidade      |
+| `administracao.js` — painel, filtros, CSV, exclusão, Palmeira, botão voltar    | bloqueado    | admin, palmeira |
+| `navegacao-voltar.js` — botão voltar no assistente, rascunho, sair             | bloqueado    | —               |
+| `offline.js` — checklist inteiro sem internet depois da 1ª visita              | bloqueado    | penedo          |
+| `capturas.js` — capturas das telas principais (celular e computador)           | bloqueado    | —               |
+| `aparelhos.js` — 10 telas em 7 aparelhos (celulares e tablets, em pé/deitados) | bloqueado    | —               |
+| `instalacao.js` — instalável no Chrome, botão no Android, dica no iPhone       | bloqueado    | —               |
+| `dois-aparelhos-banco-real.js` — motorista e administração sincronizando       | **produção** | penedo, admin   |
 
 Sem navegador, contra o banco real: `node tests/integracao/firestore-real.mjs`. As capturas vão
 para a pasta temporária do sistema (`checklist-e2e`) ou para `SAIDA`. Todos aceitam
