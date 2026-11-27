@@ -1,5 +1,5 @@
-// Capturas das telas principais com dados semeados — login, início com viagem em rota, histórico,
-// passo 1 do checklist e lista da administração — no celular e no computador. Serve para revisar
+// Capturas das telas principais com dados semeados — login, quem está acessando, início com viagem
+// em rota, histórico, passo 1 do checklist e lista da administração — no celular e no computador. Serve para revisar
 // o visual depois de mexer no CSS. O banco fica BLOQUEADO.
 //
 // Como rodar (com `npm run build && npm run preview` aberto em outro terminal):
@@ -114,10 +114,25 @@ const semear = sessao => {
       await contexto.close();
     }
     for (const [nome, opcoes] of [
+      ['motorista-celular', celular],
+      ['motorista-desktop', desktop]
+    ]) {
+      const { contexto, page } = await abrir(opcoes, { tipo: 'unidade', unidadeId: 'penedo' });
+      await page.waitForSelector('.tela--motorista');
+      await page.waitForFunction(() => document.querySelectorAll('.cracha-escolha__cartao img').length >= 2);
+      await page.waitForTimeout(2500);
+      await foto(page, nome);
+      await contexto.close();
+    }
+    for (const [nome, opcoes] of [
       ['rota-celular', celular],
       ['rota-desktop', desktop]
     ]) {
-      const { contexto, page } = await abrir(opcoes, { tipo: 'unidade', unidadeId: 'penedo' });
+      const { contexto, page } = await abrir(opcoes, {
+        tipo: 'unidade',
+        unidadeId: 'penedo',
+        motorista: { id: 'rogerio', nomeOutro: '' }
+      });
       await page.waitForSelector('.tela--inicio');
       await page.waitForTimeout(5000);
       await foto(page, `${nome}-topo`);

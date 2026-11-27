@@ -12,13 +12,15 @@ automaticamente. A administração acompanha as duas unidades num painel.
 ## Como o motorista usa
 
 1. Digita o código da unidade.
-2. **Motorista** — escolhe um motorista da unidade (Penedo: Rogerio ou Marcio; Palmeira dos Índios:
-   Caique ou Pedro) ou _Outro_ (digitando o nome). O crachá muda na hora.
-3. **Veículo** — informa o KM de saída. Se já voltou, liga "Já voltei" e informa também o KM de volta.
-4. **Inspeção** — marca cada item como _Bom_, _Ruim_ ou _Faltante / Não funciona_ e, se quiser,
-   escreve algo em _Outros_.
-5. **Revisão** — confere e envia. A data e a hora são gravadas pelo app nesse momento.
-6. Se saiu sem informar o KM de volta, o veículo fica **em rota**; ao retornar, abre o app e toca em
+2. **Quem está acessando?** — toca no próprio crachá (Penedo: Rogerio ou Marcio; Palmeira dos Índios:
+   Caique ou Pedro) ou em _Outro motorista_ (digitando o nome). O app guarda a escolha até a pessoa
+   sair; na tela inicial, **Trocar motorista** muda sem digitar o código de novo.
+3. Toca em **Iniciar checklist**, que tem 3 passos:
+   - **Veículo** — informa o KM de saída. Se já voltou, liga "Já voltei" e informa também o KM de volta.
+   - **Inspeção** — marca cada item como _Bom_, _Ruim_ ou _Faltante / Não funciona_ e, se quiser,
+     escreve algo em _Outros_.
+   - **Revisão** — confere e envia. A data e a hora são gravadas pelo app nesse momento.
+4. Se saiu sem informar o KM de volta, o veículo fica **em rota**; ao retornar, abre o app e toca em
    **Registrar retorno** (a data e a hora do retorno também são automáticas).
 
 A administração entra com o código dela e vê: veículos em rota, checklists por período, itens com
@@ -115,10 +117,10 @@ O código de cada um está em `src/reactbits/`, copiado do registro oficial ([re
 
 | Componente  | Onde aparece                                                                                |
 | ----------- | ------------------------------------------------------------------------------------------- |
-| Lanyard     | Crachá com foto: tela inicial, passo "Motorista" e painel da administração                  |
+| Lanyard     | Crachá com foto: tela inicial e painel da administração                                     |
 | ModelViewer | Carro da unidade em 3D: tela inicial, passo "Veículo" e painel da administração             |
 | GridScan    | "Sala de varredura" atrás do carro                                                          |
-| GhostFibers | Fundo do login, do crachá no passo "Motorista" e da tela de sucesso                         |
+| GhostFibers | Fundo do login e da tela de sucesso                                                         |
 | Radar       | Viagem em andamento, registro do retorno e painel da administração                          |
 | SloshGauge  | Tanque de progresso da inspeção e "condição" do veículo de cada unidade                     |
 | CometDial   | Condição do veículo na revisão, KM rodados no retorno e seletor de período da administração |

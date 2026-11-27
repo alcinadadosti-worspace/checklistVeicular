@@ -2,23 +2,37 @@ import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, MotionConfig } from 'motion/react';
 import Protecao from './componentes/Protecao.jsx';
 import { unidadePorId } from './config/frota.js';
-import { encerrarSessao, gravarSessao, lerSessao } from './lib/acesso.js';
+import { comMotorista, encerrarSessao, gravarSessao, lembrarMotorista, lerSessao } from './lib/acesso.js';
 import { banco } from './lib/banco.js';
 import { apagarRascunho, gravarRascunho, lerRascunho, novoRascunho } from './lib/rascunho.js';
 import { sincronizacao } from './lib/sincronizacao.js';
 import Login from './telas/Login.jsx';
 
+const carregarMotorista = () => import('./telas/Motorista.jsx');
 const carregarInicio = () => import('./telas/Inicio.jsx');
 const carregarChecklist = () => import('./telas/Checklist.jsx');
 const carregarAdmin = () => import('./telas/Admin.jsx');
+const EscolhaMotorista = lazy(carregarMotorista);
 const Inicio = lazy(carregarInicio);
 const Checklist = lazy(carregarChecklist);
 const Retorno = lazy(() => import('./telas/Retorno.jsx'));
 const Sucesso = lazy(() => import('./telas/Sucesso.jsx'));
 const Admin = lazy(carregarAdmin);
 
+// Etapas do checklist (Veículo, Inspeção, Revisão): a última é a de número 2.
+const ULTIMO_PASSO = 2;
+
+// Unidade sem motorista escolhido (logo depois do código) vai para "Quem está acessando?".
+const precisaEscolherMotorista = sessao => sessao?.tipo === 'unidade' && !sessao.motorista;
+
 const telaDeEntrada = sessao =>
-  !sessao ? { tela: 'login' } : sessao.tipo === 'admin' ? { tela: 'admin' } : { tela: 'inicio' };
+  !sessao
+    ? { tela: 'login' }
+    : sessao.tipo === 'admin'
+      ? { tela: 'admin' }
+      : precisaEscolherMotorista(sessao)
+        ? { tela: 'motorista' }
+        : { tela: 'inicio' };
 
 /**
  * Garante que a rota faz sentido para a sessão atual (por exemplo, depois de usar o
@@ -29,13 +43,16 @@ function corrigirRota(rota, sessao, formularioAtivo) {
   if (!sessao) return entrada;
   if (!rota || typeof rota.tela !== 'string') return entrada;
   if (sessao.tipo === 'admin') return rota.tela === 'admin' ? rota : entrada;
+  if (precisaEscolherMotorista(sessao)) return entrada;
 
   switch (rota.tela) {
     case 'inicio':
       return rota;
+    case 'motorista':
+      return { tela: 'motorista', troca: true }; // já há motorista: é o "Trocar motorista"
     case 'checklist':
       if (rota.formulario && rota.formulario === formularioAtivo) {
-        return { ...rota, passo: Math.min(3, Math.max(0, Number(rota.passo) || 0)) };
+        return { ...rota, passo: Math.min(ULTIMO_PASSO, Math.max(0, Number(rota.passo) || 0)) };
       }
       return entrada;
     case 'retorno':
@@ -100,6 +117,7 @@ export default function App() {
   useEffect(() => {
     if (rota.tela !== 'login') return undefined;
     const relogio = setTimeout(() => {
+      carregarMotorista().catch(() => {});
       carregarInicio().catch(() => {});
       carregarChecklist().catch(() => {});
     }, 1200);
@@ -128,11 +146,46 @@ export default function App() {
     ir({ tela: 'login' }, { substituir: true });
   }, [ir]);
 
+  /**
+   * Volta `etapas` telas no histórico do navegador e então troca a tela atual por `destino`
+   * (assim o botão "voltar" do celular não reabre uma tela que já foi concluída).
+   */
+  const voltarEtapas = useCallback(
+    (etapas, destino) => {
+      const finalizar = () => ir(destino, { substituir: true });
+      if (etapas <= 0) {
+        finalizar();
+        return;
+      }
+      aposVoltar.current = finalizar;
+      window.history.go(-etapas);
+      // Se o navegador não tiver para onde voltar, segue em frente mesmo assim.
+      setTimeout(() => {
+        if (aposVoltar.current !== finalizar) return;
+        aposVoltar.current = null;
+        finalizar();
+      }, 700);
+    },
+    [ir]
+  );
+
+  // Tocou no crachá: a sessão passa a ter o motorista e o app vai para o início.
+  const escolherMotorista = (id, nomeOutro) => {
+    const nova = comMotorista(sessaoAtual.current, id, nomeOutro);
+    if (!nova?.motorista) return;
+    gravarSessao(nova);
+    sessaoAtual.current = nova;
+    setSessao(nova);
+    lembrarMotorista(unidadePorId(nova.unidadeId), id, nomeOutro);
+    if (rota.troca) voltarEtapas(1, { tela: 'inicio' });
+    else ir({ tela: 'inicio' }, { substituir: true });
+  };
+
   const iniciarChecklist = useCallback(() => {
     if (!unidade) return;
     let rascunho = lerRascunho(unidade);
     if (!rascunho) {
-      rascunho = novoRascunho(unidade);
+      rascunho = novoRascunho();
       gravarRascunho(unidade, rascunho);
     }
     formularioAtivo.current = rascunho.id;
@@ -145,23 +198,9 @@ export default function App() {
     (registroId, passoAtual) => {
       formularioAtivo.current = null;
       if (unidade) apagarRascunho(unidade);
-      const destino = { tela: 'sucesso', registro: registroId };
-      const etapasParaTras = Math.max(0, Number(passoAtual) || 0);
-      if (etapasParaTras === 0) {
-        ir(destino, { substituir: true });
-        return;
-      }
-      const finalizar = () => ir(destino, { substituir: true });
-      aposVoltar.current = finalizar;
-      window.history.go(-etapasParaTras);
-      // Se o navegador não tiver para onde voltar, segue em frente mesmo assim.
-      setTimeout(() => {
-        if (aposVoltar.current !== finalizar) return;
-        aposVoltar.current = null;
-        finalizar();
-      }, 700);
+      voltarEtapas(Math.max(0, Number(passoAtual) || 0), { tela: 'sucesso', registro: registroId });
     },
-    [ir, unidade]
+    [unidade, voltarEtapas]
   );
 
   const voltar = useCallback(() => window.history.back(), []);
@@ -173,11 +212,24 @@ export default function App() {
     conteudo = <Login key="login" aoEntrar={entrar} />;
   } else if (rota.tela === 'admin') {
     conteudo = <Admin key="admin" aoSair={sair} />;
+  } else if (rota.tela === 'motorista' || precisaEscolherMotorista(sessao)) {
+    conteudo = (
+      <EscolhaMotorista
+        key="motorista"
+        unidade={unidade}
+        atual={sessao.motorista}
+        troca={Boolean(rota.troca && sessao.motorista)}
+        aoEscolher={escolherMotorista}
+        aoVoltar={voltar}
+        aoSair={sair}
+      />
+    );
   } else if (rota.tela === 'checklist') {
     conteudo = (
       <Checklist
         key={`checklist-${rota.formulario}`}
         unidade={unidade}
+        motorista={sessao.motorista}
         formularioId={rota.formulario}
         passo={rota.passo}
         aoMudarPasso={passo => {
@@ -212,7 +264,9 @@ export default function App() {
       <Inicio
         key="inicio"
         unidade={unidade}
+        motorista={sessao.motorista}
         aoIniciar={iniciarChecklist}
+        aoTrocarMotorista={() => ir({ tela: 'motorista', troca: true })}
         aoRetornar={registroId => ir({ tela: 'retorno', registro: registroId })}
         aoSair={sair}
       />

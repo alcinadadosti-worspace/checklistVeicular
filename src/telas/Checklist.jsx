@@ -2,15 +2,12 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Botao, Topo, transicaoDeTela } from '../componentes/Basicos.jsx';
 import { CampoKm, CarimboDeHora, ItemInspecao } from '../componentes/Campos.jsx';
-import Cracha from '../componentes/Cracha.jsx';
 import { ResumoDosItens } from '../componentes/DetalheChecklist.jsx';
-import { FundoFibras } from '../componentes/Fundos.jsx';
 import Icone from '../componentes/Icone.jsx';
 import { PalcoVeiculo } from '../componentes/Veiculo.jsx';
-import { ITENS, MOTORISTAS, motoristaPorId, motoristasDaUnidade, nomeDoVeiculo } from '../config/frota.js';
-import { lembrarMotorista, nomeDoMotorista } from '../lib/acesso.js';
+import { ITENS, nomeDoVeiculo } from '../config/frota.js';
+import { nomeDoMotorista } from '../lib/acesso.js';
 import { banco } from '../lib/banco.js';
-import { fotoDe } from '../lib/fotos.js';
 import { km, limparNome, numero, paraKm } from '../lib/formato.js';
 import { useBanco } from '../lib/ganchos.js';
 import { apagarRascunho, gravarRascunho, lerRascunho, novoRascunho } from '../lib/rascunho.js';
@@ -18,8 +15,8 @@ import { criarRegistro, piorSituacao, resumoDosItens, ultimoKm, validarChecklist
 import CometDial from '../reactbits/CometDial.jsx';
 import SloshGauge from '../reactbits/SloshGauge.jsx';
 
+// O motorista não é perguntado aqui: é quem tocou no crachá ao entrar no app.
 const PASSOS = [
-  { id: 'motorista', nome: 'Motorista', icone: 'usuario' },
   { id: 'veiculo', nome: 'Veículo', icone: 'picape' },
   { id: 'inspecao', nome: 'Inspeção', icone: 'prancheta' },
   { id: 'revisao', nome: 'Revisão', icone: 'check' }
@@ -34,132 +31,10 @@ const deslizar = {
 };
 
 /* ------------------------------------------------------------------ */
-/* Passo 1 — Motorista                                                 */
+/* Passo 1 — Veículo e quilometragem                                   */
 /* ------------------------------------------------------------------ */
 
-/**
- * Enquadra a miniatura da foto como o crachá (src/lib/cracha.js): o ponto de `foco` no centro,
- * aproximado pelo `zoom`, sem deixar a foto descobrir as bordas.
- */
-const enquadrarMiniatura = ({ foco, zoom }) => {
-  const origem = foco.map(ponto => {
-    if (zoom <= 1) return ponto;
-    const inicio = Math.min(Math.max(ponto - 0.5 / zoom, 0), 1 - 1 / zoom); // borda da parte visível
-    return (zoom * inicio) / (zoom - 1); // origem do scale() que leva essa borda até a borda da miniatura
-  });
-  return {
-    objectPosition: `${foco[0] * 100}% ${foco[1] * 100}%`,
-    transform: `scale(${zoom})`,
-    transformOrigin: `${origem[0] * 100}% ${origem[1] * 100}%`
-  };
-};
-
-function PassoMotorista({ unidade, dados, mudar, erro }) {
-  const pessoa = motoristaPorId(dados.motoristaId) || MOTORISTAS[0];
-  const nome = nomeDoMotorista(dados.motoristaId, dados.nomeOutro);
-  return (
-    <div className="passo passo--dividido">
-      <div className="palco palco--cracha">
-        <div className="palco__fundo" aria-hidden="true">
-          <FundoFibras brightness={0.75} mouseInteraction={false} pulseOnClick={false} intro={false} />
-        </div>
-        <Cracha
-          nome={nome || (dados.motoristaId === 'outro' ? 'Seu nome' : '')}
-          unidade={unidade.nome}
-          veiculo={unidade.veiculo.apelido}
-          foto={pessoa.foto}
-          foco={pessoa.foco}
-          zoom={pessoa.zoom}
-        />
-      </div>
-
-      <div className="passo__campos">
-        <span className="sobretitulo">Passo 1 de 4</span>
-        <h2>Quem vai dirigir?</h2>
-        <p className="texto-2">Escolha o nome do motorista. O crachá muda na hora.</p>
-
-        <div className="motoristas" role="radiogroup" aria-label="Nome do motorista">
-          {motoristasDaUnidade(unidade).map(motorista => {
-            const ativo = dados.motoristaId === motorista.id;
-            const foto = fotoDe(motorista.foto);
-            return (
-              <motion.button
-                key={motorista.id}
-                type="button"
-                role="radio"
-                aria-checked={ativo}
-                className="motorista"
-                data-ativo={ativo ? '' : undefined}
-                whileTap={{ scale: 0.97 }}
-                onClick={() => mudar({ motoristaId: motorista.id })}
-              >
-                <span className="motorista__foto">
-                  {foto ? (
-                    <img src={foto} alt="" style={enquadrarMiniatura(motorista)} />
-                  ) : (
-                    <Icone nome="usuario" tamanho={26} />
-                  )}
-                </span>
-                <span className="motorista__textos">
-                  <strong>{motorista.nome}</strong>
-                  <span>{motorista.id === 'outro' ? 'Digitar outro nome' : `Motorista de ${unidade.nome}`}</span>
-                </span>
-                <span className="motorista__marca" aria-hidden="true">
-                  <Icone nome="check" tamanho={16} espessura={2.6} />
-                </span>
-              </motion.button>
-            );
-          })}
-        </div>
-
-        <AnimatePresence initial={false}>
-          {dados.motoristaId === 'outro' ? (
-            <motion.div
-              className="campo"
-              key="nome-outro"
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.25 }}
-            >
-              <label className="rotulo" htmlFor="nome-outro">
-                Nome do motorista
-              </label>
-              <input
-                id="nome-outro"
-                className="entrada"
-                type="text"
-                value={dados.nomeOutro}
-                maxLength={40}
-                autoComplete="name"
-                autoCapitalize="words"
-                enterKeyHint="done"
-                placeholder="Digite o nome completo"
-                aria-invalid={erro ? true : undefined}
-                onChange={evento => mudar({ nomeOutro: evento.target.value })}
-                onKeyDown={evento => {
-                  if (evento.key === 'Enter') evento.currentTarget.blur();
-                }}
-              />
-            </motion.div>
-          ) : null}
-        </AnimatePresence>
-
-        {erro ? (
-          <p className="campo__erro" role="alert">
-            {erro}
-          </p>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/* Passo 2 — Veículo e quilometragem                                   */
-/* ------------------------------------------------------------------ */
-
-function PassoVeiculo({ unidade, dados, mudar, erros, ultimo }) {
+function PassoVeiculo({ unidade, motoristaNome, dados, mudar, erros, ultimo }) {
   const saida = paraKm(dados.kmSaida);
   const volta = dados.informarVolta ? paraKm(dados.kmVolta) : null;
   const rodados = saida !== null && volta !== null && volta >= saida ? volta - saida : null;
@@ -176,8 +51,12 @@ function PassoVeiculo({ unidade, dados, mudar, erros, ultimo }) {
       </PalcoVeiculo>
 
       <div className="passo__campos">
-        <span className="sobretitulo">Passo 2 de 4</span>
+        <span className="sobretitulo">Passo 1 de {PASSOS.length}</span>
         <h2>Dados do veículo</h2>
+        <p className="passo__quem">
+          <Icone nome="usuario" tamanho={16} />
+          Motorista: <strong>{motoristaNome}</strong>
+        </p>
 
         <CarimboDeHora />
 
@@ -242,7 +121,7 @@ function PassoVeiculo({ unidade, dados, mudar, erros, ultimo }) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Passo 3 — Itens inspecionados                                       */
+/* Passo 2 — Itens inspecionados                                       */
 /* ------------------------------------------------------------------ */
 
 function PassoInspecao({ dados, mudar, erro, cobrar }) {
@@ -327,10 +206,10 @@ function PassoInspecao({ dados, mudar, erro, cobrar }) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Passo 4 — Revisão e envio                                           */
+/* Passo 3 — Revisão e envio                                           */
 /* ------------------------------------------------------------------ */
 
-function PassoRevisao({ unidade, dados, erros }) {
+function PassoRevisao({ unidade, motoristaNome, dados, erros }) {
   const resumo = resumoDosItens(dados.itens);
   const [mostrado, setMostrado] = useState(0);
   useEffect(() => {
@@ -388,7 +267,7 @@ function PassoRevisao({ unidade, dados, erros }) {
         <dl className="ficha">
           <div>
             <dt>Motorista</dt>
-            <dd>{nomeDoMotorista(dados.motoristaId, dados.nomeOutro) || '—'}</dd>
+            <dd>{motoristaNome || '—'}</dd>
           </div>
           <div>
             <dt>Unidade</dt>
@@ -453,11 +332,11 @@ function PassoRevisao({ unidade, dados, erros }) {
 /* Assistente                                                          */
 /* ------------------------------------------------------------------ */
 
-export default function Checklist({ unidade, formularioId, passo, aoMudarPasso, aoVoltar, aoConcluir }) {
+export default function Checklist({ unidade, motorista, formularioId, passo, aoMudarPasso, aoVoltar, aoConcluir }) {
   const { registros } = useBanco();
   const [dados, setDados] = useState(() => {
     const salvo = lerRascunho(unidade);
-    return salvo && salvo.id === formularioId ? salvo.dados : novoRascunho(unidade).dados;
+    return salvo && salvo.id === formularioId ? salvo.dados : novoRascunho().dados;
   });
   const [tentou, setTentou] = useState({});
   const [enviando, setEnviando] = useState(false);
@@ -482,11 +361,11 @@ export default function Checklist({ unidade, formularioId, passo, aoMudarPasso, 
   const ultimo = useMemo(() => ultimoKm(registros, unidade.id), [registros, unidade.id]);
   const saida = paraKm(dados.kmSaida);
   const volta = dados.informarVolta ? paraKm(dados.kmVolta) : null;
-  const nome = nomeDoMotorista(dados.motoristaId, dados.nomeOutro);
+  const nome = nomeDoMotorista(motorista.id, motorista.nomeOutro);
 
   const validacao = useMemo(() => {
     const resultado = validarChecklist({
-      motoristaId: dados.motoristaId,
+      motoristaId: motorista.id,
       motoristaNome: nome,
       kmSaida: saida,
       kmVolta: volta,
@@ -497,10 +376,9 @@ export default function Checklist({ unidade, formularioId, passo, aoMudarPasso, 
       erros.kmVolta = 'Informe o KM de volta ou desligue a opção "Já voltei".';
     }
     return { erros, ok: Object.keys(erros).length === 0 };
-  }, [dados, nome, saida, volta]);
+  }, [dados, motorista.id, nome, saida, volta]);
 
   const errosDoPasso = [
-    validacao.erros.motorista ? { motorista: validacao.erros.motorista } : {},
     {
       ...(validacao.erros.kmSaida ? { kmSaida: validacao.erros.kmSaida } : {}),
       ...(validacao.erros.kmVolta ? { kmVolta: validacao.erros.kmVolta } : {})
@@ -514,7 +392,7 @@ export default function Checklist({ unidade, formularioId, passo, aoMudarPasso, 
     setEnviando(true);
     const registro = criarRegistro({
       unidade,
-      motoristaId: dados.motoristaId,
+      motoristaId: motorista.id,
       motoristaNome: limparNome(nome),
       kmSaida: saida,
       kmVolta: volta,
@@ -522,7 +400,6 @@ export default function Checklist({ unidade, formularioId, passo, aoMudarPasso, 
       outros: dados.outros
     });
     const salvo = banco.gravar(registro);
-    lembrarMotorista(unidade, dados.motoristaId, dados.nomeOutro);
     apagarRascunho(unidade);
     navigator.vibrate?.([40, 60, 40]);
     aoConcluir(salvo.id, passo);
@@ -550,7 +427,7 @@ export default function Checklist({ unidade, formularioId, passo, aoMudarPasso, 
     <motion.main className="tela tela--checklist" {...transicaoDeTela}>
       <Topo
         titulo="Checklist de saída"
-        subtitulo={`${unidade.nome} · ${unidade.veiculo.apelido}`}
+        subtitulo={`${unidade.nome} · ${unidade.veiculo.apelido} · ${nome}`}
         aoVoltar={aoVoltar}
       />
 
@@ -595,13 +472,18 @@ export default function Checklist({ unidade, formularioId, passo, aoMudarPasso, 
             transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
           >
             {passo === 0 ? (
-              <PassoMotorista unidade={unidade} dados={dados} mudar={mudar} erro={mostrar(0).motorista} />
+              <PassoVeiculo
+                unidade={unidade}
+                motoristaNome={nome}
+                dados={dados}
+                mudar={mudar}
+                erros={mostrar(0)}
+                ultimo={ultimo}
+              />
             ) : passo === 1 ? (
-              <PassoVeiculo unidade={unidade} dados={dados} mudar={mudar} erros={mostrar(1)} ultimo={ultimo} />
-            ) : passo === 2 ? (
-              <PassoInspecao dados={dados} mudar={mudar} erro={mostrar(2).itens} cobrar={Boolean(tentou[2])} />
+              <PassoInspecao dados={dados} mudar={mudar} erro={mostrar(1).itens} cobrar={Boolean(tentou[1])} />
             ) : (
-              <PassoRevisao unidade={unidade} dados={dados} erros={mostrar(3)} />
+              <PassoRevisao unidade={unidade} motoristaNome={nome} dados={dados} erros={mostrar(2)} />
             )}
           </motion.div>
         </AnimatePresence>

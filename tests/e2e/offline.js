@@ -63,13 +63,23 @@ const conferir = (descricao, condicao, detalhe = '') => {
     await page.waitForSelector('.teclado', { timeout: 15000 });
     conferir('login abre sem internet', true);
     for (const d of CODIGO) await page.tap(`.tecla:text-is("${d}")`);
+    await page.waitForSelector('.tela--motorista', { timeout: 15000 });
+    const crachas = await page
+      .waitForFunction(() => document.querySelectorAll('.cracha-escolha__cartao img').length >= 2, null, {
+        timeout: 15000
+      })
+      .then(
+        () => true,
+        () => false
+      );
+    conferir('crachás com foto sem internet', crachas);
+    await page.locator('.cracha-escolha__botao').first().tap();
     await page.waitForSelector('.tela--inicio', { timeout: 15000 });
     await page.waitForSelector('.lanyard-canvas', { timeout: 20000 });
     conferir('início e crachá 3D sem internet', true);
 
     await page.tap('.inicio__acoes .botao');
     await page.waitForSelector('.tela--checklist', { timeout: 15000 });
-    await page.tap('.assistente__rodape .botao--g');
     await page.waitForSelector('.campo-km');
     await page.waitForTimeout(3500);
     const canvases = await page.evaluate(() => document.querySelectorAll('.palco--veiculo canvas').length);

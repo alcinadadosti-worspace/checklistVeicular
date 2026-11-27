@@ -1,4 +1,4 @@
-// Teste de navegador: fluxo completo do motorista (login -> 4 passos -> envio -> retorno), com uma
+// Teste de navegador: fluxo completo do motorista (código -> crachá -> 3 passos -> envio -> retorno), com uma
 // captura de tela por etapa. O banco de dados fica BLOQUEADO: nada é gravado na nuvem.
 //
 // Como rodar (com `npm run build && npm run preview` aberto em outro terminal):
@@ -23,7 +23,7 @@ const CODIGOS = Object.fromEntries(
     .filter(par => par.length === 2)
 );
 const CODIGO = CODIGOS[UNIDADE];
-// Motoristas que aparecem no passo 1 de cada unidade (o primeiro é o padrão), antes do "Outro".
+// Crachás que aparecem em "Quem está acessando?" para cada unidade, antes do "Outro motorista".
 const MOTORISTAS_DA_UNIDADE = { penedo: ['Rogerio', 'Marcio'], palmeira: ['Caique', 'Pedro'] };
 const [PRINCIPAL, SEGUNDO] = MOTORISTAS_DA_UNIDADE[UNIDADE] || [];
 if (!PRINCIPAL) {
@@ -79,55 +79,93 @@ const conferir = (descricao, condicao, detalhe = '') => {
     await page.waitForSelector('.teclado');
     await page.waitForTimeout(1500);
     for (const d of CODIGO) await tocar(`.tecla:text-is("${d}")`);
+
+    // quem está acessando? — os crachás da unidade
+    await page.waitForSelector('.tela--motorista', { timeout: 20000 });
+    conferir('login com o código da unidade leva à escolha do motorista', true);
+    await page.waitForFunction(() => document.querySelectorAll('.cracha-escolha__cartao img').length >= 2, null, {
+      timeout: 15000
+    });
+    await page.waitForTimeout(1800);
+    await foto('quem-acessa');
+    const crachas = await page.locator('.cracha-escolha__legenda strong').allTextContents();
+    conferir(
+      'crachás dos motoristas da unidade',
+      crachas.join('|') === [PRINCIPAL, SEGUNDO].join('|'),
+      crachas.join(', ')
+    );
+    conferir('opção "Outro motorista"', (await page.locator('.escolha__outro .motorista').count()) === 1);
+    await tocar('.escolha__outro .motorista');
+    await page.fill('#nome-outro', '');
+    await tocar('.escolha__formulario .botao');
+    await page.waitForTimeout(500);
+    conferir('"Outro" sem nome é recusado', (await page.locator('.escolha__formulario .campo__erro').count()) === 1);
+    await page.fill('#nome-outro', 'Marcos Vinícius');
+    await page.waitForTimeout(600);
+    await foto('quem-acessa-outro');
+    await tocar('.escolha__outro .motorista'); // fecha o "Outro"
+    await tocar(`.cracha-escolha__botao[aria-label="Entrar como ${PRINCIPAL}"]`);
     await page.waitForSelector('.tela--inicio', { timeout: 20000 });
-    conferir('login com o código da unidade', true);
     await page.waitForTimeout(5500);
+    const saudacao = await page.locator('.inicio__boas-vindas h1 .degrade').textContent();
+    conferir('início com o motorista escolhido', saudacao === PRINCIPAL, saudacao);
     await foto('inicio');
     await foto('inicio-inteira', { fullPage: true });
 
-    // passo 1 — motorista
+    // trocar motorista sem digitar o código de novo
+    await tocar('.inicio__trocar');
+    await page.waitForSelector('.tela--motorista');
+    await page.waitForTimeout(1500);
+    conferir(
+      'na troca, o crachá atual aparece marcado',
+      (await page.locator('.cracha-escolha__legenda span').first().textContent()) === 'Acessando agora'
+    );
+    await foto('trocar-motorista');
+    await tocar(`.cracha-escolha__botao[aria-label="Entrar como ${SEGUNDO}"]`);
+    await page.waitForSelector('.tela--inicio');
+    await page.waitForTimeout(1500);
+    conferir(
+      'depois da troca, o início mostra o novo motorista',
+      (await page.locator('.inicio__boas-vindas h1 .degrade').textContent()) === SEGUNDO
+    );
+    conferir('a troca não deixa a escolha no "voltar"', (await page.evaluate(() => history.state?.tela)) === 'inicio');
+    await page.reload({ waitUntil: 'load' });
+    await page.waitForSelector('.tela--inicio', { timeout: 20000 });
+    conferir(
+      'ao reabrir o app, continua com o mesmo motorista',
+      (await page.locator('.inicio__boas-vindas h1 .degrade').textContent()) === SEGUNDO
+    );
+    await page.waitForTimeout(3000);
+
+    // passo 1 — veículo e KM
     await tocar('.inicio__acoes .botao');
     await page.waitForSelector('.tela--checklist');
-    await page.waitForTimeout(4500);
-    await foto('passo1-motorista');
-    const opcoes = await page.locator('.motorista strong').allTextContents();
-    conferir(
-      'opções de motorista da unidade',
-      opcoes.join('|') === [PRINCIPAL, SEGUNDO, 'Outro'].join('|'),
-      opcoes.join(', ')
-    );
-    conferir(
-      'motorista padrão já vem marcado',
-      (await page.locator('.motorista[data-ativo] strong').textContent()) === PRINCIPAL
-    );
-    await tocar('.motorista:has-text("Outro")');
-    await page.fill('#nome-outro', 'Marcos Vinícius');
-    await page.waitForTimeout(2500);
-    await foto('passo1-outro');
-    await tocar(`.motorista:has-text("${SEGUNDO}")`);
-    await page.waitForTimeout(2200);
-    await foto(`passo1-${SEGUNDO.toLowerCase()}`);
-    await tocar(`.motorista:has-text("${PRINCIPAL}")`);
-    await page.waitForTimeout(1200);
-
-    // passo 2 — veículo e KM
-    await continuar();
     await page.waitForSelector('.campo-km');
+    const etapas = await page.locator('.trilho__nome').allTextContents();
+    conferir(
+      'checklist em 3 passos, sem perguntar o motorista',
+      etapas.join('|') === 'Veículo|Inspeção|Revisão',
+      etapas.join(', ')
+    );
+    conferir(
+      'passo 1 mostra quem é o motorista',
+      (await page.locator('.passo__quem strong').textContent()) === SEGUNDO
+    );
     await page.waitForTimeout(6000);
-    await foto('passo2-veiculo');
+    await foto('passo1-veiculo');
     await continuar(); // sem KM: deve ser recusado
     await page.waitForTimeout(700);
     conferir('KM de saída vazio é recusado', (await page.locator('.campo-km[data-erro]').count()) === 1);
-    await foto('passo2-erro');
+    await foto('passo1-erro');
     await page.locator('.campo-km__entrada').first().fill('45210');
     await page.waitForTimeout(900);
-    await foto('passo2-km', { fullPage: true });
+    await foto('passo1-km', { fullPage: true });
 
-    // passo 3 — inspeção
+    // passo 2 — inspeção
     await continuar();
     await page.waitForSelector('.itens');
     await page.waitForTimeout(1200);
-    await foto('passo3-vazio');
+    await foto('passo2-vazio');
     const itens = page.locator('.item');
     const total = await itens.count();
     conferir('7 itens de inspeção', total === 7, `${total}`);
@@ -137,7 +175,7 @@ const conferir = (descricao, condicao, detalhe = '') => {
         await continuar(); // faltando itens: deve ser cobrado
         await page.waitForTimeout(900);
         conferir('itens sem resposta são cobrados', (await page.locator('.campo__erro--bloco').count()) === 1);
-        await foto('passo3-faltando');
+        await foto('passo2-faltando');
       }
       await itens.nth(i).locator(`.opcao[data-tipo="${tipo}"]`).scrollIntoViewIfNeeded();
       await itens.nth(i).locator(`.opcao[data-tipo="${tipo}"]`).click();
@@ -145,13 +183,13 @@ const conferir = (descricao, condicao, detalhe = '') => {
     }
     await page.fill('#outros', 'Barulho na suspensão dianteira ao passar em lombada.');
     await page.waitForTimeout(900);
-    await foto('passo3-completo', { fullPage: true });
+    await foto('passo2-completo', { fullPage: true });
 
-    // passo 4 — revisão e envio
+    // passo 3 — revisão e envio
     await continuar();
     await page.waitForSelector('.passo--revisao');
     await page.waitForTimeout(2200);
-    await foto('passo4-revisao', { fullPage: true });
+    await foto('passo3-revisao', { fullPage: true });
     await continuar();
     await page.waitForSelector('.tela--sucesso', { timeout: 15000 });
     await page.waitForTimeout(3800);
@@ -200,7 +238,8 @@ const conferir = (descricao, condicao, detalhe = '') => {
     conferir('um registro gravado no aparelho', registros.length === 1, `${registros.length}`);
     conferir(
       'dados do registro',
-      r.motoristaNome === PRINCIPAL &&
+      r.motoristaNome === SEGUNDO &&
+        r.motoristaId === SEGUNDO.toLowerCase() &&
         r.kmSaida === 45210 &&
         r.kmVolta === 45392 &&
         r.itens?.estepe === 'faltante' &&

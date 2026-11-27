@@ -59,32 +59,44 @@ const conferir = (descricao, condicao, detalhe = '') => {
       localStorage.setItem('clv.sessao', JSON.stringify({ tipo: 'unidade', unidadeId: 'penedo' }));
     });
     await page.reload({ waitUntil: 'load' });
-    await onde('início', 'tela--inicio');
-    await page.tap('.inicio__acoes .botao');
-    await onde('abre o checklist no passo 1', 'tela--checklist', 'Motorista');
-    await continuar();
-    await onde('continuar -> passo 2', 'tela--checklist', 'Veículo');
+    // sessão de antes da escolha por crachá (sem motorista): pergunta quem está acessando
+    await onde('sessão sem motorista -> quem está acessando', 'tela--motorista');
+    await page.tap('.cracha-escolha__botao[aria-label="Entrar como Rogerio"]');
+    await onde('tocar no crachá -> início', 'tela--inicio');
+    await page.tap('.inicio__trocar');
+    await onde('trocar motorista', 'tela--motorista');
     await page.evaluate(() => history.back());
-    await onde('voltar do navegador -> passo 1', 'tela--checklist', 'Motorista');
-    await continuar();
-    await onde('continuar de novo -> passo 2', 'tela--checklist', 'Veículo');
+    await onde('voltar do navegador na troca -> início, sem trocar', 'tela--inicio');
+    await page.tap('.inicio__trocar');
+    await onde('trocar motorista de novo', 'tela--motorista');
+    await page.tap('.topo .botao-icone[aria-label="Voltar"]');
+    await onde('botão Voltar do topo na troca -> início', 'tela--inicio');
+    await page.tap('.inicio__acoes .botao');
+    await onde('abre o checklist no passo 1', 'tela--checklist', 'Veículo');
     await page.locator('.campo-km__entrada').first().fill('1000');
     await continuar();
-    await onde('continuar -> passo 3', 'tela--checklist', 'Inspeção');
+    await onde('continuar -> passo 2', 'tela--checklist', 'Inspeção');
+    await page.evaluate(() => history.back());
+    await onde('voltar do navegador -> passo 1', 'tela--checklist', 'Veículo');
+    await continuar();
+    await onde('continuar de novo -> passo 2', 'tela--checklist', 'Inspeção');
     await page.tap('.assistente__rodape .botao--fantasma');
-    await onde('botão Voltar do rodapé -> passo 2', 'tela--checklist', 'Veículo');
+    await onde('botão Voltar do rodapé -> passo 1', 'tela--checklist', 'Veículo');
     await continuar();
-    await onde('continuar -> passo 3', 'tela--checklist', 'Inspeção');
-    for (const item of await page.locator('.item').all()) await item.locator('.opcao[data-tipo="bom"]').click();
+    await onde('continuar -> passo 2', 'tela--checklist', 'Inspeção');
+    // espera a etapa terminar de entrar (a anterior sai antes, com animação)
+    await page.waitForFunction(() => document.querySelectorAll('.itens .item').length === 7);
+    await page.waitForTimeout(400);
+    for (const item of await page.locator('.itens .item').all()) await item.locator('.opcao[data-tipo="bom"]').click();
     await continuar();
-    await onde('continuar -> passo 4', 'tela--checklist', 'Revisão');
+    await onde('continuar -> passo 3', 'tela--checklist', 'Revisão');
     await page.locator('.trilho li button').first().click();
-    await onde('trilho -> passo 1', 'tela--checklist', 'Motorista');
-    for (let i = 0; i < 3; i++) {
+    await onde('trilho -> passo 1', 'tela--checklist', 'Veículo');
+    for (let i = 0; i < 2; i++) {
       await continuar();
       await page.waitForTimeout(500);
     }
-    await onde('3x continuar -> passo 4', 'tela--checklist', 'Revisão');
+    await onde('2x continuar -> passo 3', 'tela--checklist', 'Revisão');
 
     await page.reload({ waitUntil: 'load' });
     await onde('recarregar no meio do formulário mantém o passo', 'tela--checklist', 'Revisão');

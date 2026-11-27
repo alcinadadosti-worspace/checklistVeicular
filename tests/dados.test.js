@@ -6,7 +6,14 @@ import { existsSync } from 'node:fs';
 import { beforeEach, describe, it } from 'node:test';
 
 import { MOTORISTAS, UNIDADES, motoristasDaUnidade, unidadePorId } from '../src/config/frota.js';
-import { identificar, lembrarMotorista, motoristaDaUnidade } from '../src/lib/acesso.js';
+import {
+  comMotorista,
+  gravarSessao,
+  identificar,
+  lembrarMotorista,
+  lerSessao,
+  motoristaDaUnidade
+} from '../src/lib/acesso.js';
 import { banco, gravarPreferencia } from '../src/lib/banco.js';
 import { gerarCsv } from '../src/lib/exportar.js';
 import { paraKm } from '../src/lib/formato.js';
@@ -111,14 +118,52 @@ describe('motoristas', () => {
     assert.deepEqual(motoristaDaUnidade(palmeira), { id: 'outro', nomeOutro: 'João da Silva' });
   });
 
-  it('rascunho com motorista de outra unidade volta para o motorista da unidade', () => {
-    const rascunho = novoRascunho(penedo);
-    gravarRascunho(penedo, { ...rascunho, dados: { ...rascunho.dados, motoristaId: 'caique', kmSaida: '45210' } });
-    const lido = lerRascunho(penedo);
-    assert.equal(lido.dados.motoristaId, 'rogerio');
-    assert.equal(lido.dados.kmSaida, '45210', 'o resto do rascunho fica como estava');
-    gravarRascunho(penedo, { ...rascunho, dados: { ...rascunho.dados, motoristaId: 'marcio' } });
-    assert.equal(lerRascunho(penedo).dados.motoristaId, 'marcio');
+  it('o código da unidade entra sem motorista: o app pergunta quem está acessando', () => {
+    const sessao = { tipo: 'unidade', unidadeId: 'penedo' };
+    gravarSessao(sessao);
+    assert.deepEqual(lerSessao(), sessao, 'sessão de antes desta mudança continua valendo');
+    assert.equal(lerSessao().motorista, undefined);
+  });
+
+  it('a sessão guarda o motorista do crachá, só se ele for da unidade', () => {
+    const penedoSessao = { tipo: 'unidade', unidadeId: 'penedo' };
+    assert.deepEqual(comMotorista(penedoSessao, 'marcio'), {
+      ...penedoSessao,
+      motorista: { id: 'marcio', nomeOutro: '' }
+    });
+    assert.equal(comMotorista(penedoSessao, 'caique').motorista, undefined, 'motorista da outra unidade');
+    assert.equal(comMotorista(penedoSessao, 'ninguem').motorista, undefined, 'motorista que não existe');
+    assert.equal(comMotorista(penedoSessao, 'outro', '   ').motorista, undefined, '"Outro" sem nome');
+    assert.deepEqual(comMotorista(penedoSessao, 'outro', '  João   da Silva ').motorista, {
+      id: 'outro',
+      nomeOutro: 'João da Silva'
+    });
+    assert.deepEqual(comMotorista(penedoSessao, 'rogerio', 'nome ignorado').motorista, {
+      id: 'rogerio',
+      nomeOutro: ''
+    });
+
+    gravarSessao(comMotorista({ tipo: 'unidade', unidadeId: 'palmeira' }, 'pedro'));
+    assert.deepEqual(lerSessao(), {
+      tipo: 'unidade',
+      unidadeId: 'palmeira',
+      motorista: { id: 'pedro', nomeOutro: '' }
+    });
+    gravarSessao({ tipo: 'unidade', unidadeId: 'palmeira', motorista: { id: 'marcio' } });
+    assert.deepEqual(lerSessao(), { tipo: 'unidade', unidadeId: 'palmeira' }, 'sessão adulterada perde o motorista');
+    gravarSessao({ tipo: 'admin', motorista: { id: 'rogerio' } });
+    assert.deepEqual(lerSessao(), { tipo: 'admin' });
+    gravarSessao(null);
+  });
+
+  it('rascunho guarda o que foi preenchido, sem o motorista', () => {
+    const rascunho = novoRascunho();
+    assert.equal(rascunho.dados.motoristaId, undefined);
+    gravarRascunho(penedo, { ...rascunho, dados: { ...rascunho.dados, kmSaida: '45210' } });
+    assert.equal(lerRascunho(penedo).dados.kmSaida, '45210');
+    assert.equal(lerRascunho(palmeira), null, 'cada unidade tem o seu rascunho');
+    gravarRascunho(penedo, { ...rascunho, em: Date.now() - 13 * 60 * 60 * 1000 });
+    assert.equal(lerRascunho(penedo), null, 'rascunho com mais de 12 h é descartado');
   });
 });
 

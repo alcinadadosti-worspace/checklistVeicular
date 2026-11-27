@@ -235,6 +235,8 @@ const semear = () => {
     await page.evaluate(() => window.scrollTo(0, 0));
     await page.click('.topo .botao-icone[aria-label="Sair"]');
     await digitar(CODIGOS.palmeira);
+    await page.waitForSelector('.tela--motorista', { timeout: 20000 });
+    await page.click('.cracha-escolha__botao[aria-label="Entrar como Caique"]');
     await page.waitForSelector('.tela--inicio', { timeout: 20000 });
     await page.waitForTimeout(6000);
     conferir('tela inicial de Palmeira', (await page.textContent('.topo__textos strong')) === 'Palmeira dos Índios');
@@ -250,12 +252,14 @@ const semear = () => {
     await page.evaluate(() => window.scrollTo(0, 0));
     await page.click('.inicio__acoes .botao');
     await page.waitForSelector('.tela--checklist');
-    await page.click('.assistente__rodape .botao--g');
     await page.waitForSelector('.campo-km');
+    await page.locator('.campo-km__entrada').first().fill('1000');
+    await page.click('.assistente__rodape .botao--g');
+    await page.waitForSelector('.itens');
     await page.goBack();
     conferir(
       'voltar no passo 2 leva ao passo 1',
-      await esperar(() => document.querySelectorAll('.motoristas').length === 1)
+      await esperar(() => document.querySelectorAll('.campo-km').length === 1)
     );
     await page.goBack();
     conferir(

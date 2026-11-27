@@ -25,11 +25,14 @@ Quando o usuário escrever **"vamos continuar"**:
 4. Ao concluir uma etapa, atualize **Estado atual** (com a data) e faça commit + push — o usuário
    autorizou commit e push neste projeto. Adicione arquivos **pelo nome**, nunca `git add -A`.
 
-## Estado atual — 27/11/2026 (manhã)
+## Estado atual — 27/11/2026 (fim da manhã)
 
-**Pronto** (último commit de funcionalidade: `27b6b4e`):
+**Pronto** (último commit de funcionalidade: escolha do motorista por crachá, 27/11):
 
-- Login por código; checklist em 4 passos (motorista, veículo/KM, inspeção, revisão) com data e
+- Login por código → **"Quem está acessando?"** com os crachás dos motoristas da unidade (e "Outro
+  motorista" com nome); a escolha fica na sessão (`sessao.motorista`) até sair, e "Trocar
+  motorista" no início muda sem redigitar o código. Sessão antiga sem motorista cai nessa tela.
+- Checklist em **3 passos** (veículo/KM, inspeção, revisão; o motorista vem da sessão) com data e
   hora automáticas; viagem "em rota" até o KM de volta; painel da administração (indicadores,
   filtros, ficha, exclusão, exportação CSV). Os 8 componentes do React Bits pedidos, em uso.
 - **Motoristas por unidade** (25/11): Penedo — Rogerio (padrão) e Marcio; Palmeira — Caique
@@ -45,7 +48,9 @@ Quando o usuário escrever **"vamos continuar"**:
 - **Versão com Marcio e Pedro no ar** desde 27/11 (~10h), por Manual Deploy do usuário. No site
   publicado passaram em 27/11: `fluxo-motorista.js` nas duas unidades e `offline.js` (os dois
   bloqueiam o banco).
-- Testes: 30 de dados (`npm test`) e 6 de navegador em `tests/e2e`.
+- Testes: 32 de dados (`npm test`) e 6 de navegador em `tests/e2e` (todos passando na prévia
+  local em 27/11, já com a escolha por crachá).
+- **Pendente:** o usuário fazer **Manual Deploy** no Render para a escolha por crachá entrar no ar.
 
 **Publicação no Render — sem Auto-Deploy:** o site foi criado pela opção "Public Git Repository"
 (endereço colado), e nessa opção o Render **não publica sozinho** a cada push (não há webhook do
@@ -65,8 +70,18 @@ ficaram no banco com `excluido: true`. O usuário achou que o banco "não estava
 **Banco de produção:** os 2 checklists de teste do usuário (24/11) foram excluídos em 25/11 a pedido
 dele — ficam no banco com `excluido: true` (a marcação que avisa os outros aparelhos) e não
 aparecem no app. A limpeza de `dois-aparelhos-banco-real.js` faz o mesmo (rodada em 27/11, deixou
-2 registros de teste excluídos; o banco tem 4 documentos, nenhum visível): não apaga documento de vez, porque um documento apagado nunca chega aos aparelhos que
-já tinham baixado o registro, que ficaria preso neles.
+2 registros de teste excluídos; o banco tem 4 documentos, nenhum visível): não apaga documento de
+vez, porque um documento apagado nunca chega aos aparelhos que já tinham baixado o registro, que
+ficaria preso neles.
+
+**Em andamento (27/11):** **fotos no campo "Outros"** da inspeção, para a Ludmylla ver na ficha
+(pedido do usuário).
+
+**Perguntar ao usuário:** KM de volta — ele sugeriu usar o KM de saída do dia seguinte. Proposto:
+manter "Registrar retorno" (mostra o carro na base e revela uso sem checklist, pela diferença entre
+o KM de volta e a saída seguinte) e, se a viagem anterior ainda estiver "em rota" ao enviar um
+checklist novo, fechá-la sozinho com o KM de saída novo, marcada como "volta pela saída seguinte";
+talvez tirar a chave "Já voltei" do passo 1. **Esperar a resposta antes de mexer.**
 
 **Sem versionar:** `img/separacao-lote-2026-11-24_1633.pdf` (não é deste app) — **não fazer commit**.
 `preparar-fotos` só converte imagens, então ele não entra no site.
@@ -97,7 +112,7 @@ painel do Render (opcional).
   servidor; `documents:runQuery` incremental por `servidorEm` (relê 1 min de margem).
 - `src/lib/sincronizacao.js` — ciclo baixar → enviar, com novas tentativas e modo offline.
 - `src/lib/cracha.js` — desenha frente, verso e cordão do crachá (canvas) para o Lanyard.
-- `src/telas/` — Login, Inicio, Checklist, Retorno, Sucesso, Admin. `src/App.jsx` guarda as rotas
+- `src/telas/` — Login, Motorista ("Quem está acessando?"), Inicio, Checklist, Retorno, Sucesso, Admin. `src/App.jsx` guarda as rotas
   no `history` do navegador (o botão voltar do celular funciona).
 - `src/reactbits/` — cópias do registro oficial do React Bits. **Não refatorar.** Única exceção:
   `ModelViewer.jsx` ganhou as props `children` e `rotationOrder` (comentado no topo do arquivo).
@@ -134,14 +149,14 @@ ela fica atrás de outras janelas). Antes: `npm run build && npm run preview` (o
 CODIGOS_TESTE="penedo=…,palmeira=…,admin=…" node ~/.claude/skills/playwright/run.js tests/e2e/<arquivo>.js
 ```
 
-| Arquivo                                                                       | Banco        | Códigos         |
-| ----------------------------------------------------------------------------- | ------------ | --------------- |
-| `fluxo-motorista.js` — login → 4 passos → envio → retorno (`MODO`, `UNIDADE`) | bloqueado    | da unidade      |
-| `administracao.js` — painel, filtros, CSV, exclusão, Palmeira, botão voltar   | bloqueado    | admin, palmeira |
-| `navegacao-voltar.js` — botão voltar no assistente, rascunho, sair            | bloqueado    | —               |
-| `offline.js` — checklist inteiro sem internet depois da 1ª visita             | bloqueado    | penedo          |
-| `capturas.js` — capturas das telas principais (celular e computador)          | bloqueado    | —               |
-| `dois-aparelhos-banco-real.js` — motorista e administração sincronizando      | **produção** | penedo, admin   |
+| Arquivo                                                                     | Banco        | Códigos         |
+| --------------------------------------------------------------------------- | ------------ | --------------- |
+| `fluxo-motorista.js` — código → crachá → 3 passos → envio → retorno         | bloqueado    | da unidade      |
+| `administracao.js` — painel, filtros, CSV, exclusão, Palmeira, botão voltar | bloqueado    | admin, palmeira |
+| `navegacao-voltar.js` — botão voltar no assistente, rascunho, sair          | bloqueado    | —               |
+| `offline.js` — checklist inteiro sem internet depois da 1ª visita           | bloqueado    | penedo          |
+| `capturas.js` — capturas das telas principais (celular e computador)        | bloqueado    | —               |
+| `dois-aparelhos-banco-real.js` — motorista e administração sincronizando    | **produção** | penedo, admin   |
 
 Sem navegador, contra o banco real: `node tests/integracao/firestore-real.mjs`. As capturas vão
 para a pasta temporária do sistema (`checklist-e2e`) ou para `SAIDA`. Todos aceitam

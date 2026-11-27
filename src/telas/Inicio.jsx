@@ -9,7 +9,7 @@ import { LinhaRegistro, PastaDeChecklists } from '../componentes/Registros.jsx';
 import StatusNuvem from '../componentes/StatusNuvem.jsx';
 import { PalcoVeiculo } from '../componentes/Veiculo.jsx';
 import { motoristaPorId } from '../config/frota.js';
-import { motoristaDaUnidade, nomeDoMotorista } from '../lib/acesso.js';
+import { nomeDoMotorista } from '../lib/acesso.js';
 import { dataHora, diaPorExtenso, haQuantoTempo, hora, numero, saudacao } from '../lib/formato.js';
 import { useAgora, useBanco } from '../lib/ganchos.js';
 import { nuvem } from '../lib/nuvem.js';
@@ -49,7 +49,7 @@ function CartaoViagem({ registro, aoRetornar, agora }) {
   );
 }
 
-export default function Inicio({ unidade, aoIniciar, aoRetornar, aoSair }) {
+export default function Inicio({ unidade, motorista, aoIniciar, aoTrocarMotorista, aoRetornar, aoSair }) {
   const { registros, idsPendentes } = useBanco();
   const agora = useAgora(30000);
   const [aberto, setAberto] = useState(null);
@@ -69,9 +69,10 @@ export default function Inicio({ unidade, aoIniciar, aoRetornar, aoSair }) {
     }).length;
   }, [daUnidade, agora]);
 
-  const escolha = motoristaDaUnidade(unidade);
-  const pessoa = motoristaPorId(escolha.id);
-  const nome = nomeDoMotorista(escolha.id, escolha.nomeOutro);
+  // Quem tocou no crachá ao entrar ("Outro" aparece com a silhueta).
+  const pessoa = motoristaPorId(motorista.id);
+  const nome = nomeDoMotorista(motorista.id, motorista.nomeOutro);
+  const primeiroNome = nome.split(' ')[0] || 'motorista';
   const registroAberto = aberto ? daUnidade.find(registro => registro.id === aberto) : null;
   const recentes = daUnidade.slice(0, 6);
 
@@ -105,7 +106,7 @@ export default function Inicio({ unidade, aoIniciar, aoRetornar, aoSair }) {
             <p className="sobretitulo">{diaPorExtenso(agora)}</p>
             <h1>
               {saudacao(agora)},<br />
-              <span className="degrade">{nome.split(' ')[0] || 'motorista'}</span>
+              <span className="degrade">{primeiroNome}</span>
             </h1>
             <p className="texto-2">
               {emAndamento.length > 0
@@ -124,6 +125,11 @@ export default function Inicio({ unidade, aoIniciar, aoRetornar, aoSair }) {
                 {emAndamento.length > 0 ? 'Novo checklist' : 'Iniciar checklist'}
               </Botao>
             </div>
+
+            <button type="button" className="atalho inicio__trocar" onClick={aoTrocarMotorista}>
+              <Icone nome="usuario" tamanho={16} />
+              Não é {primeiroNome}? Trocar motorista
+            </button>
 
             <dl className="indicadores">
               <div>

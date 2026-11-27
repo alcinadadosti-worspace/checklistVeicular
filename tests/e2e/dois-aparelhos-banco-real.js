@@ -152,9 +152,6 @@ const limparBanco = async () => {
   const preencher = async (pagina, km) => {
     await pagina.click('.inicio__acoes .botao');
     await pagina.waitForSelector('.tela--checklist');
-    await pagina.click('.motorista:has-text("Outro")');
-    await pagina.fill('#nome-outro', NOME);
-    await pagina.click('.assistente__rodape .botao--g');
     await pagina.waitForSelector('.campo-km');
     await pagina.locator('.campo-km__entrada').first().fill(String(km));
     await pagina.click('.assistente__rodape .botao--g');
@@ -174,6 +171,11 @@ const limparBanco = async () => {
 
     console.log('1) Motorista entra e o app sincroniza com a nuvem');
     await entrar(A, COD_UNIDADE);
+    // quem está acessando? -> "Outro motorista" com o nome de teste (nunca um motorista real)
+    await A.waitForSelector('.tela--motorista', { timeout: 20000 });
+    await A.click('.escolha__outro .motorista');
+    await A.fill('#nome-outro', NOME);
+    await A.click('.escolha__formulario .botao');
     await A.waitForSelector('.tela--inicio', { timeout: 20000 });
     await esperarSincronizado(A, 'A (motorista) ao abrir');
 
