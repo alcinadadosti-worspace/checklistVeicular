@@ -13,8 +13,10 @@ automaticamente. A administração acompanha as duas unidades num painel.
 
 1. Digita o código da unidade.
 2. **Quem está acessando?** — toca no próprio crachá (Penedo: Rogerio ou Marcio; Palmeira dos Índios:
-   Caique ou Pedro) ou em _Outro motorista_ (digitando o nome). O app guarda a escolha até a pessoa
-   sair; na tela inicial, **Trocar motorista** muda sem digitar o código de novo.
+   Caique ou Pedro) ou em _Outro motorista_ (digitando o nome). O código da unidade fica guardado, mas a
+   escolha do motorista vale só enquanto o app está aberto: ao abrir o app de novo, ou ao voltar
+   para ele depois de mais de 15 minutos fora, ele pergunta outra vez (celular compartilhado). Na
+   tela inicial, **Trocar motorista** muda sem digitar o código de novo.
 3. Toca em **Iniciar checklist**, que tem 3 passos:
    - **Veículo** — informa o KM de saída.
    - **Inspeção** — marca cada item como _Bom_, _Ruim_ ou _Faltante / Não funciona_ e, se quiser,

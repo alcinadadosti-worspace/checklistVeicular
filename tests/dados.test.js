@@ -7,11 +7,15 @@ import { beforeEach, describe, it } from 'node:test';
 
 import { MOTORISTAS, UNIDADES, motoristasDaUnidade, unidadePorId } from '../src/config/frota.js';
 import {
+  TEMPO_FORA,
   comMotorista,
+  encerrarSessao,
   gravarSessao,
   identificar,
   lembrarMotorista,
   lerSessao,
+  marcarSaidaDoApp,
+  marcarVoltaAoApp,
   motoristaDaUnidade
 } from '../src/lib/acesso.js';
 import { banco, gravarPreferencia } from '../src/lib/banco.js';
@@ -160,6 +164,24 @@ describe('motoristas', () => {
     gravarSessao({ tipo: 'admin', motorista: { id: 'rogerio' } });
     assert.deepEqual(lerSessao(), { tipo: 'admin' });
     gravarSessao(null);
+  });
+
+  it('celular compartilhado: fora do app por mais de 15 min, pergunta de novo quem está acessando', () => {
+    const agora = Date.parse('2026-11-27T10:00:00Z');
+    gravarSessao(comMotorista({ tipo: 'unidade', unidadeId: 'penedo' }, 'marcio'));
+    marcarSaidaDoApp(agora);
+    assert.equal(marcarVoltaAoApp(agora + 5 * 60 * 1000), false, 'saiu rapidinho: continua');
+    assert.equal(lerSessao().motorista.id, 'marcio');
+    marcarSaidaDoApp(agora + 10 * 60 * 1000);
+    assert.equal(marcarVoltaAoApp(agora + 10 * 60 * 1000 + TEMPO_FORA + 1), true, 'voltou muito depois');
+    assert.deepEqual(lerSessao(), { tipo: 'unidade', unidadeId: 'penedo' }, 'o código da unidade continua');
+
+    // App descartado pelo celular e reaberto (sem o evento de volta): o relógio também conta.
+    gravarSessao(comMotorista({ tipo: 'unidade', unidadeId: 'penedo' }, 'rogerio'));
+    marcarSaidaDoApp(agora);
+    assert.equal(lerSessao(agora + TEMPO_FORA + 1).motorista, undefined);
+    encerrarSessao();
+    assert.equal(lerSessao(), null);
   });
 
   it('rascunho guarda o que foi preenchido, sem o motorista', () => {

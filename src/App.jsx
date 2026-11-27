@@ -2,7 +2,15 @@ import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, MotionConfig } from 'motion/react';
 import Protecao from './componentes/Protecao.jsx';
 import { UNIDADES, unidadePorId } from './config/frota.js';
-import { comMotorista, encerrarSessao, gravarSessao, lembrarMotorista, lerSessao } from './lib/acesso.js';
+import {
+  comMotorista,
+  encerrarSessao,
+  gravarSessao,
+  lembrarMotorista,
+  lerSessao,
+  marcarSaidaDoApp,
+  marcarVoltaAoApp
+} from './lib/acesso.js';
 import { banco } from './lib/banco.js';
 import { cofreDeFotos } from './lib/fotosDoChecklist.js';
 import { apagarRascunho, gravarRascunho, lerRascunho, novoRascunho } from './lib/rascunho.js';
@@ -108,6 +116,27 @@ export default function App() {
     return () => window.removeEventListener('popstate', aoNavegar);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Celular compartilhado: voltando ao app depois de muito tempo fora, pergunta de novo quem está
+  // acessando (o checklist em andamento continua guardado no rascunho).
+  useEffect(() => {
+    const aoMudarVisibilidade = () => {
+      if (document.visibilityState === 'hidden') {
+        marcarSaidaDoApp();
+        return;
+      }
+      if (!marcarVoltaAoApp()) return;
+      const atual = sessaoAtual.current;
+      if (atual?.tipo !== 'unidade' || !atual.motorista) return;
+      const nova = { tipo: 'unidade', unidadeId: atual.unidadeId };
+      gravarSessao(nova);
+      sessaoAtual.current = nova;
+      setSessao(nova);
+      ir({ tela: 'motorista' }, { substituir: true });
+    };
+    document.addEventListener('visibilitychange', aoMudarVisibilidade);
+    return () => document.removeEventListener('visibilitychange', aoMudarVisibilidade);
+  }, [ir]);
 
   useEffect(() => {
     sincronizacao.iniciar();

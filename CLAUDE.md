@@ -55,9 +55,15 @@ Quando o usuário escrever **"vamos continuar"**:
 - **Versão com Marcio e Pedro no ar** desde 27/11 (~10h), por Manual Deploy do usuário. No site
   publicado passaram em 27/11: `fluxo-motorista.js` nas duas unidades e `offline.js` (os dois
   bloqueiam o banco).
-- Testes: 52 de dados (`npm test`) e 8 de navegador em `tests/e2e`, todos passando em 27/11 na
+- Testes: 53 de dados (`npm test`) e 8 de navegador em `tests/e2e`, todos passando em 27/11 na
   prévia local; `dois-aparelhos-banco-real.js` (com foto) passou na prévia local contra o banco
   real, já com as regras novas.
+- **Celular compartilhado (27/11, pedido do usuário; não publicado):** o código da unidade fica no
+  localStorage (`clv.sessao`, sem motorista); o motorista escolhido fica no sessionStorage
+  (`clv.motorista`) e vale só nesta abertura do app. Abrir o app de novo, ou voltar depois de mais de
+  15 min fora (`TEMPO_FORA`, `marcarSaidaDoApp`/`marcarVoltaAoApp` no `visibilitychange`), pergunta
+  "Quem está acessando?" de novo; recarregar não pergunta. Testes que semeiam motorista gravam também
+  `sessionStorage['clv.motorista']`.
 - **Revisão de bugs (27/11, pedido do usuário; não publicado):** quando dois aparelhos discordam,
   vale o **peso da versão** (`pesoDaVersao`: excluído > volta registrada > volta pela saída seguinte
   > em rota) e só no empate o maior `atualizadoEm` — a volta automática nunca desfaz uma volta real

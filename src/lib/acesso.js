@@ -45,9 +45,92 @@ export const sessaoValida = sessao => {
 /** A mesma sessão, agora com o motorista que tocou no crachá. */
 export const comMotorista = (sessao, id, nomeOutro = '') => sessaoValida({ ...sessao, motorista: { id, nomeOutro } });
 
-export const lerSessao = () => sessaoValida(lerPreferencia('sessao'));
-export const gravarSessao = sessao => gravarPreferencia('sessao', sessaoValida(sessao));
-export const encerrarSessao = () => gravarPreferencia('sessao', null);
+/* --- celular compartilhado -------------------------------------------------------------
+ * O código da unidade fica guardado no aparelho (localStorage), mas o motorista escolhido vale só
+ * para esta "abertura" do app (sessionStorage, que some quando o app ou a aba é fechado). Ao abrir
+ * o app de novo — ou ao voltar para ele depois de TEMPO_FORA em outro lugar — o app pergunta outra
+ * vez quem está acessando. Recarregar a página ou sair rapidinho (ex.: tirar uma foto) não pergunta.
+ */
+export const TEMPO_FORA = 15 * 60 * 1000;
+const CHAVE_ABERTURA = 'clv.motorista';
+let aberturaNaMemoria = null; // reserva, se o navegador não deixar usar o sessionStorage (e nos testes)
+
+const sessionStorageDoNavegador = () => {
+  try {
+    return globalThis.sessionStorage ?? null;
+  } catch {
+    return null;
+  }
+};
+
+const lerAbertura = () => {
+  const armazenamento = sessionStorageDoNavegador();
+  if (!armazenamento) return aberturaNaMemoria;
+  try {
+    return JSON.parse(armazenamento.getItem(CHAVE_ABERTURA) || 'null');
+  } catch {
+    return aberturaNaMemoria;
+  }
+};
+
+const gravarAbertura = abertura => {
+  aberturaNaMemoria = abertura;
+  const armazenamento = sessionStorageDoNavegador();
+  if (!armazenamento) return;
+  try {
+    if (abertura) armazenamento.setItem(CHAVE_ABERTURA, JSON.stringify(abertura));
+    else armazenamento.removeItem(CHAVE_ABERTURA);
+  } catch {
+    /* sem acesso: fica só na memória */
+  }
+};
+
+export const lerSessao = (agora = Date.now()) => {
+  const base = sessaoValida(lerPreferencia('sessao'));
+  if (base?.tipo !== 'unidade') return base;
+  const abertura = lerAbertura();
+  if (!abertura || abertura.unidadeId !== base.unidadeId) return base;
+  if (abertura.escondidoEm && agora - abertura.escondidoEm > TEMPO_FORA) {
+    gravarAbertura(null); // o app ficou muito tempo fora (ou foi descartado pelo celular)
+    return base;
+  }
+  if (abertura.escondidoEm) gravarAbertura({ ...abertura, escondidoEm: null });
+  return sessaoValida({ ...base, motorista: abertura.motorista });
+};
+
+export const gravarSessao = sessao => {
+  const valida = sessaoValida(sessao);
+  gravarPreferencia(
+    'sessao',
+    valida && (valida.tipo === 'admin' ? { tipo: 'admin' } : { tipo: 'unidade', unidadeId: valida.unidadeId })
+  );
+  gravarAbertura(
+    valida?.motorista ? { unidadeId: valida.unidadeId, motorista: valida.motorista, escondidoEm: null } : null
+  );
+};
+
+export const encerrarSessao = () => {
+  gravarPreferencia('sessao', null);
+  gravarAbertura(null);
+};
+
+/** O app foi para segundo plano: começa a contar o tempo fora. */
+export const marcarSaidaDoApp = (agora = Date.now()) => {
+  const abertura = lerAbertura();
+  if (abertura && !abertura.escondidoEm) gravarAbertura({ ...abertura, escondidoEm: agora });
+};
+
+/** O app voltou para a tela. Se ficou fora mais de TEMPO_FORA, esquece o motorista e devolve true. */
+export const marcarVoltaAoApp = (agora = Date.now()) => {
+  const abertura = lerAbertura();
+  if (!abertura?.escondidoEm) return false;
+  if (agora - abertura.escondidoEm > TEMPO_FORA) {
+    gravarAbertura(null);
+    return true;
+  }
+  gravarAbertura({ ...abertura, escondidoEm: null });
+  return false;
+};
 
 /**
  * Motorista usado por último neste aparelho para a unidade, se ele ainda for uma das opções

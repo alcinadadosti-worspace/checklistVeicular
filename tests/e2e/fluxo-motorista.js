@@ -132,9 +132,39 @@ const conferir = (descricao, condicao, detalhe = '') => {
     await page.reload({ waitUntil: 'load' });
     await page.waitForSelector('.tela--inicio', { timeout: 20000 });
     conferir(
-      'ao reabrir o app, continua com o mesmo motorista',
+      'ao recarregar a página, continua com o mesmo motorista',
       (await page.locator('.inicio__boas-vindas h1 .degrade').textContent()) === SEGUNDO
     );
+
+    // celular compartilhado: abrir o app de novo (outra abertura/aba) pergunta quem está acessando
+    const outraAbertura = await contexto.newPage();
+    await outraAbertura.goto(TARGET_URL, { waitUntil: 'load' });
+    conferir(
+      'abrir o app de novo pergunta quem está acessando (sem pedir o código)',
+      await outraAbertura.waitForSelector('.tela--motorista', { timeout: 15000 }).then(
+        () => true,
+        () => false
+      )
+    );
+    await outraAbertura.close();
+    // ... e voltar ao app depois de mais de 15 minutos fora dele também
+    await page.evaluate(() => {
+      const abertura = JSON.parse(sessionStorage.getItem('clv.motorista'));
+      sessionStorage.setItem(
+        'clv.motorista',
+        JSON.stringify({ ...abertura, escondidoEm: Date.now() - 16 * 60 * 1000 })
+      );
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    conferir(
+      'voltar ao app depois de 15 min fora pergunta de novo',
+      await page.waitForSelector('.tela--motorista', { timeout: 5000 }).then(
+        () => true,
+        () => false
+      )
+    );
+    await tocar(`.cracha-escolha__botao[aria-label="Entrar como ${SEGUNDO}"]`);
+    await page.waitForSelector('.tela--inicio');
     await page.waitForTimeout(3000);
 
     // passo 1 — veículo e KM

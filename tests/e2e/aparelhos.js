@@ -81,7 +81,15 @@ const semear = ({ sessao, rascunho, estado }) => {
   }
   localStorage.clear();
   localStorage.setItem('clv.dados.v1', JSON.stringify({ registros, pendentes: [], cursor: null }));
+  sessionStorage.clear();
   if (sessao) localStorage.setItem('clv.sessao', JSON.stringify(sessao));
+  // motorista escolhido nesta abertura do app (o app guarda no sessionStorage)
+  if (sessao?.motorista) {
+    sessionStorage.setItem(
+      'clv.motorista',
+      JSON.stringify({ unidadeId: sessao.unidadeId, motorista: sessao.motorista, escondidoEm: null })
+    );
+  }
   if (rascunho) localStorage.setItem('clv.rascunho.penedo', JSON.stringify(rascunho));
   if (estado) history.replaceState(estado, '');
 };

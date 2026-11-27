@@ -147,7 +147,7 @@ export default function EscolhaMotorista({ unidade, atual, troca, aoEscolher, ao
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
         >
-          <span className="sobretitulo">{troca ? 'Trocar motorista' : 'Acesso liberado'}</span>
+          <span className="sobretitulo">{troca ? 'Trocar motorista' : 'Antes de começar'}</span>
           <h1>
             Quem está <span className="degrade">acessando</span>?
           </h1>
